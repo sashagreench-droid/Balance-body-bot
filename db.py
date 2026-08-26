@@ -29,45 +29,39 @@ def init_db():
     );
     CREATE TABLE IF NOT EXISTS answers (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tg_id INTEGER,
-        day INTEGER,
-        kind TEXT,
-        value TEXT,
+        tg_id INTEGER, day INTEGER, kind TEXT, value TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS photos (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tg_id INTEGER,
-        day INTEGER,
-        file_id TEXT,
-        caption TEXT,
+        tg_id INTEGER, day INTEGER, file_id TEXT, caption TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS questions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        tg_id INTEGER,
-        day INTEGER,
-        text TEXT,
+        tg_id INTEGER, day INTEGER, text TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS badges (
-        tg_id INTEGER,
-        badge TEXT,
+        tg_id INTEGER, badge TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (tg_id, badge)
     );
+    CREATE TABLE IF NOT EXISTS system_items (
+        tg_id INTEGER, field TEXT, value TEXT,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (tg_id, field)
+    );
     """)
-    con.commit()
-    con.close()
+    con.commit(); con.close()
 
 def ensure_user(tg_id, name):
     con = connect()
-    con.execute("INSERT OR IGNORE INTO users(tg_id,name) VALUES(?,?)",(tg_id,name))
+    con.execute("INSERT OR IGNORE INTO users(tg_id,name) VALUES(?,?)", (tg_id,name))
     for d in range(1,50):
         status = "AVAILABLE" if d == 1 else "LOCKED"
-        con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)",(tg_id,d,status))
-    con.commit()
-    con.close()
+        con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)", (tg_id,d,status))
+    con.commit(); con.close()
 
 def user(tg_id):
     con=connect(); row=con.execute("SELECT * FROM users WHERE tg_id=?",(tg_id,)).fetchone(); con.close(); return row
@@ -81,8 +75,7 @@ def start_day(tg_id, day):
 def complete_day(tg_id, day, reflection):
     con=connect()
     row=con.execute("SELECT status FROM days WHERE tg_id=? AND day=?",(tg_id,day)).fetchone()
-    if not row or row["status"] == "COMPLETED":
-        con.close(); return False
+    if not row or row["status"] == "COMPLETED": con.close(); return False
     con.execute("UPDATE days SET status='COMPLETED', reflection=?, completed_at=CURRENT_TIMESTAMP WHERE tg_id=? AND day=?",(reflection,tg_id,day))
     if day < 49:
         con.execute("UPDATE days SET status='AVAILABLE' WHERE tg_id=? AND day=? AND status='LOCKED'",(tg_id,day+1))
@@ -106,3 +99,9 @@ def add_badge(tg_id,badge):
 
 def badges(tg_id):
     con=connect(); rows=con.execute("SELECT badge FROM badges WHERE tg_id=? ORDER BY created_at",(tg_id,)).fetchall(); con.close(); return [r["badge"] for r in rows]
+
+def set_system_item(tg_id,field,value):
+    con=connect(); con.execute("INSERT INTO system_items(tg_id,field,value,updated_at) VALUES(?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(tg_id,field) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP",(tg_id,field,value)); con.commit(); con.close()
+
+def system_items(tg_id):
+    con=connect(); rows=con.execute("SELECT field,value FROM system_items WHERE tg_id=?",(tg_id,)).fetchall(); con.close(); return {r["field"]:r["value"] for r in rows}
