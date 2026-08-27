@@ -89,7 +89,7 @@ def start_day(tg_id, day):
 
 
 def complete_day(tg_id, day, reflection):
-    con=db_connect = connect()
+    con = connect()
     row=con.execute("SELECT status FROM days WHERE tg_id=? AND day=?",(tg_id,day)).fetchone()
     if not row or row["status"] == "COMPLETED": con.close(); return False
     con.execute("UPDATE days SET status='COMPLETED', reflection=?, completed_at=CURRENT_TIMESTAMP WHERE tg_id=? AND day=?",(reflection,tg_id,day))
