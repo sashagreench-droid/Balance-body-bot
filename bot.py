@@ -16,7 +16,6 @@ TZ = ZoneInfo(os.getenv("BOT_TIMEZONE","UTC"))
 REMINDER_HOUR = int(os.getenv("DAILY_REMINDER_HOUR","9"))
 ASK_NAME, = range(1)
 
-
 def day_info(n): return DAYS[n-1]
 def task_info(n): return DAY_TASKS[n]
 def level_for_day(n):
@@ -39,7 +38,10 @@ def day_kb(n, status):
     return InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data=f"startday:{n}")],[InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")]])
 
 def scale_kb(prefix):
-    return InlineKeyboardMarkup([[InlineKeyboardButton(str(i), callback_data=f"{prefix}:{i}") for i in range(1,6)]])
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(str(i), callback_data=f"{prefix}:{i}") for i in range(1,6)],
+        [InlineKeyboardButton(str(i), callback_data=f"{prefix}:{i}") for i in range(6,11)]
+    ])
 
 def reflection_buttons():
     return InlineKeyboardMarkup([[InlineKeyboardButton("✍️ ОТВЕТИТЬ",callback_data="reflection_start")],[InlineKeyboardButton("⏭ ПРОПУСТИТЬ",callback_data="reflection_skip")]])
@@ -47,15 +49,12 @@ def reflection_buttons():
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = db.user(update.effective_user.id)
     if u:
-        await update.message.reply_text(f"С возвращением, {u['name']} ❤️\n\nДень {u['current_day']} из 49 уже ждёт тебя.", reply_markup=main_kb())
-        return ConversationHandler.END
-    await update.message.reply_text("Привет! ❤️\n\nЭто курс «49 дней → самостоятельность».\n\nКак тебя зовут?")
-    return ASK_NAME
+        await update.message.reply_text(f"С возвращением, {u['name']} ❤️\n\nДень {u['current_day']} из 49 уже ждёт тебя.", reply_markup=main_kb()); return ConversationHandler.END
+    await update.message.reply_text("Привет! ❤️\n\nЭто курс «49 дней → самостоятельность».\n\nКак тебя зовут?"); return ASK_NAME
 
 async def got_name(update, context):
     name=update.message.text.strip()[:80]; db.ensure_user(update.effective_user.id,name)
-    await update.message.reply_text(f"{name}, начинаем ❤️\n\nТвоя задача — не быть идеальной. Твоя задача — постепенно научиться принимать решения самостоятельно.\n\nПервый шаг — просто наблюдать.",reply_markup=main_kb())
-    return ConversationHandler.END
+    await update.message.reply_text(f"{name}, начинаем ❤️\n\nТвоя задача — не быть идеальной. Твоя задача — постепенно научиться принимать решения самостоятельно.\n\nПервый шаг — просто наблюдать.",reply_markup=main_kb()); return ConversationHandler.END
 
 async def menu(update, context):
     q=update.callback_query; await q.answer(); data=q.data; uid=q.from_user.id
@@ -73,10 +72,12 @@ async def menu(update, context):
     elif data.startswith("startday:"): await begin_day(q,int(data.split(":")[1]))
     elif data=="practice": await show_practice(q,context)
     elif data=="donepractice": await start_reflection(q,context)
+    elif data=="hunger_start":
+        context.user_data["awaiting_hunger"]=True
+        await q.message.reply_text("🍽️ Насколько ты голодна перед едой?\n\n1 — совсем не голодна\n5 — умеренный голод\n10 — очень сильный голод",reply_markup=scale_kb("hunger"))
     elif data.startswith("hunger:"):
-        value=int(data.split(":")[1]); db.save_answer(uid,db.user(uid)["current_day"],"hunger_before",value)
-        context.user_data["awaiting_satiety"]=True
-        await q.message.reply_text("🍽️ А теперь оцени сытость после еды:\n\n1 — совсем не сыта\n2 — могла бы ещё поесть\n3 — комфортно сыта\n4 — очень сыта\n5 — переела",reply_markup=scale_kb("satiety"))
+        value=int(data.split(":")[1]); db.save_answer(uid,db.user(uid)["current_day"],"hunger_before",value); context.user_data.pop("awaiting_hunger",None); context.user_data["awaiting_satiety"]=True
+        await q.message.reply_text("🍽️ А теперь после еды: насколько ты сыта?\n\n1 — совсем не сыта\n5 — комфортно сыта\n10 — переела",reply_markup=scale_kb("satiety"))
     elif data.startswith("satiety:"):
         value=int(data.split(":")[1]); n=db.user(uid)["current_day"]; db.save_answer(uid,n,"satiety_after",value); context.user_data.pop("awaiting_satiety",None)
         await q.message.reply_text("🌿 Ты отметила свои ощущения.\n\nТеперь остановись на секунду и посмотри на свой ответ.",reply_markup=reflection_buttons())
@@ -86,16 +87,15 @@ async def menu(update, context):
     elif data=="finish": await finish_day(q,context)
 
 async def show_day(q):
-    u=db.user(q.from_user.id); n=u["current_day"]; info=day_info(n); lvl,name=level_for_day(n); status=db.day_row(q.from_user.id,n)["status"]
-    task,practice,reflection=task_info(n)
-    text=(f"🗓 <b>ДЕНЬ {n} ИЗ 49</b>\n\n<b>{info[1]}</b>\n\nУровень: {name}\n🎯 Навык: {info[3]}\n⭐ Награда: +{info[4]} XP\n\n{task}")
+    u=db.user(q.from_user.id); n=u["current_day"]; info=day_info(n); lvl,name=level_for_day(n); status=db.day_row(q.from_user.id,n)["status"]; task,practice,reflection=task_info(n)
+    text=f"🗓 <b>ДЕНЬ {n} ИЗ 49</b>\n\n<b>{info[1]}</b>\n\nУровень: {name}\n🎯 Навык: {info[3]}\n⭐ Награда: +{info[4]} XP\n\n{task}"
     await q.message.reply_text(text,parse_mode="HTML",reply_markup=day_kb(n,status))
 
 async def begin_day(q,n):
     row=db.day_row(q.from_user.id,n)
     if not row or row["status"]=="LOCKED": await q.message.reply_text("Этот день пока закрыт 🔒"); return
     db.start_day(q.from_user.id,n); info=day_info(n); task,practice,reflection=task_info(n)
-    text=(f"💡 <b>ДЕНЬ {n} — {info[1]}</b>\n\n{task}\n\n🎯 Сегодня формируем навык:\n<b>{info[3]}</b>\n\nКогда будешь готова, переходи к практике.")
+    text=f"💡 <b>ДЕНЬ {n} — {info[1]}</b>\n\n{task}\n\n🎯 Сегодня формируем навык:\n<b>{info[3]}</b>\n\nКогда будешь готова, переходи к практике."
     buttons=[[InlineKeyboardButton("➡️ К ПРАКТИКЕ",callback_data="practice")],[InlineKeyboardButton("🤔 МНЕ СЛОЖНО",callback_data="trainer")],[InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")]]
     await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
 
@@ -110,13 +110,10 @@ async def show_practice(q,context):
     await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
 
 async def start_reflection(q,context):
-    context.user_data["awaiting_reflection"]=True; n=db.user(q.from_user.id)["current_day"]
-    await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением.")
+    context.user_data["awaiting_reflection"]=True; n=db.user(q.from_user.id)["current_day"]; await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением.")
 
 async def finish_day(q,context,skipped=False):
-    context.user_data.pop("awaiting_reflection",None)
-    n=db.user(q.from_user.id)["current_day"]
-    reflection="Пропущено" if skipped else ""
+    context.user_data.pop("awaiting_reflection",None); n=db.user(q.from_user.id)["current_day"]; reflection="Пропущено" if skipped else ""
     if db.complete_day(q.from_user.id,n,reflection):
         info=day_info(n); db.add_xp(q.from_user.id,info[4]); badge=BADGES.get(n); badge_text=""
         if badge and db.add_badge(q.from_user.id,badge): badge_text=f"\n🏆 Новое достижение: {badge}"
@@ -148,22 +145,17 @@ async def handle_text(update,context):
 
 async def handle_photo(update,context):
     uid=update.effective_user.id
-    if not context.user_data.pop("awaiting_photo",False):
-        await update.message.reply_text("Фото получено ❤️ Если это фотоотчет по текущему дню, открой практику."); return
-    u=db.user(uid); n=u["current_day"]; photo=update.message.photo[-1]; caption=update.message.caption or ""
-    db.save_photo(uid,n,photo.file_id,caption)
+    if not context.user_data.pop("awaiting_photo",False): await update.message.reply_text("Фото получено ❤️ Если это фотоотчет по текущему дню, открой практику."); return
+    u=db.user(uid); n=u["current_day"]; photo=update.message.photo[-1]; caption=update.message.caption or ""; db.save_photo(uid,n,photo.file_id,caption)
     for admin in ADMIN_IDS:
-        try:
-            await context.bot.forward_message(admin,update.effective_chat.id,update.message.message_id)
-            await context.bot.send_message(admin,f"📷 Фотоотчет: {u['name']}, день {n}")
+        try: await context.bot.forward_message(admin,update.effective_chat.id,update.message.message_id); await context.bot.send_message(admin,f"📷 Фотоотчет: {u['name']}, день {n}")
         except Exception: pass
     await update.message.reply_text("Фотоотчет сохранен ❤️\nТеперь возвращайся к практике и нажми «Я ВЫПОЛНИЛА».",reply_markup=main_kb())
 
 async def show_map(q):
     uid=q.from_user.id; lines=[]
     for level,(name,a,b) in LEVELS.items():
-        done=sum(1 for n in range(a,b+1) if db.day_row(uid,n)["status"]=="COMPLETED")
-        icon="🟢" if done==(b-a+1) else ("🟡" if done else "🔒"); lines.append(f"{icon} L{level} — {name}: {done}/{b-a+1}")
+        done=sum(1 for n in range(a,b+1) if db.day_row(uid,n)["status"]=="COMPLETED"); icon="🟢" if done==(b-a+1) else ("🟡" if done else "🔒"); lines.append(f"{icon} L{level} — {name}: {done}/{b-a+1}")
     await q.message.reply_text("🗺 <b>МОЯ КАРТА</b>\n\n"+"\n".join(lines),parse_mode="HTML",reply_markup=back_kb())
 
 async def show_skills(q):
@@ -181,13 +173,11 @@ async def show_progress(q):
 async def show_system(q):
     items=db.system_items(q.from_user.id); text="❤️ <b>МОЯ СИСТЕМА</b>\n\nЭто твоя личная инструкция. Она собирается по ходу курса.\n\n"
     for key,label in SYSTEM_FIELDS: text += f"{label}: {items.get(key,'—')}\n"
-    buttons=[]
-    for key,label in SYSTEM_FIELDS: buttons.append([InlineKeyboardButton(label,callback_data=f"sys:{key}")])
-    buttons.append([InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")]); await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
+    buttons=[[InlineKeyboardButton(label,callback_data=f"sys:{key}")] for key,label in SYSTEM_FIELDS]; buttons.append([InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")])
+    await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
 
 async def ask_system(q,field,context):
-    label=next((label for key,label in SYSTEM_FIELDS if key==field),field); context.user_data["awaiting_system"]=field
-    await q.message.reply_text(f"{label}\n\nНапиши, что ты хочешь сохранить в этом разделе. Это можно будет изменить позже.")
+    label=next((label for key,label in SYSTEM_FIELDS if key==field),field); context.user_data["awaiting_system"]=field; await q.message.reply_text(f"{label}\n\nНапиши, что ты хочешь сохранить в этом разделе. Это можно будет изменить позже.")
 
 async def show_snacks(q):
     text="🥪 <b>ПЕРЕКУСЫ НА СКОРУЮ РУКУ</b>\n\nЕсли нет времени готовить, не успела взять еду или нужно съесть что-то быстро:\n\n"+"\n".join(f"{icon} <b>{name}</b>\n{desc}" for icon,name,desc in SNACKS)
