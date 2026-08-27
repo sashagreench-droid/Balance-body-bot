@@ -54,12 +54,10 @@ def init_db():
         PRIMARY KEY (tg_id, field)
     );
     """)
-    # Safe migration for databases created by earlier versions.
     cols = {r["name"] for r in con.execute("PRAGMA table_info(users)").fetchall()}
     if "reminder_sent_date" not in cols:
         con.execute("ALTER TABLE users ADD COLUMN reminder_sent_date TEXT")
-    con.commit()
-    con.close()
+    con.commit(); con.close()
 
 def ensure_user(tg_id, name):
     con = connect()
@@ -94,6 +92,9 @@ def add_xp(tg_id, amount):
 def save_answer(tg_id,day,kind,value):
     con=connect(); con.execute("INSERT INTO answers(tg_id,day,kind,value) VALUES(?,?,?,?)",(tg_id,day,kind,str(value))); con.commit(); con.close()
 
+def get_day_answers(tg_id, day):
+    con=connect(); rows=con.execute("SELECT kind,value,created_at FROM answers WHERE tg_id=? AND day=? ORDER BY id",(tg_id,day)).fetchall(); con.close(); return rows
+
 def save_photo(tg_id,day,file_id,caption):
     con=connect(); con.execute("INSERT INTO photos(tg_id,day,file_id,caption) VALUES(?,?,?,?)",(tg_id,day,file_id,caption)); con.commit(); con.close()
 
@@ -113,7 +114,6 @@ def system_items(tg_id):
     con=connect(); rows=con.execute("SELECT field,value FROM system_items WHERE tg_id=?",(tg_id,)).fetchall(); con.close(); return {r["field"]:r["value"] for r in rows}
 
 def claim_reminder(tg_id, date_key):
-    """Atomically claim today's reminder. Returns True only once per user/date."""
     con = connect()
     cur = con.execute(
         "UPDATE users SET reminder_sent_date=? WHERE tg_id=? AND (reminder_sent_date IS NULL OR reminder_sent_date<>?)",
