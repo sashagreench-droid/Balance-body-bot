@@ -46,6 +46,25 @@ def scale_kb(prefix):
 def reflection_buttons():
     return InlineKeyboardMarkup([[InlineKeyboardButton("✍️ ОТВЕТИТЬ",callback_data="reflection_start")],[InlineKeyboardButton("⏭ ПРОПУСТИТЬ",callback_data="reflection_skip")]])
 
+def reflection_feedback(day, text):
+    """Short supportive feedback after a user's reflection; it does not judge the answer."""
+    if day == 1:
+        t = text.lower()
+        if any(word in t for word in ("да", "хотел", "измен", "стыд", "страш", "увид", "оцен")):
+            return ("Это очень важное наблюдение ❤️\n\n"
+                    "Ты заметила не только то, что ела, но и желание изменить выбор из-за того, что его увидит тренер/бот. "
+                    "Сегодня тебе не нужно ничего исправлять. Ты уже сделала главное — заметила этот момент. "
+                    "Именно с таких честных наблюдений начинается самостоятельность.")
+        return ("Спасибо за честный ответ ❤️\n\n"
+                "Сегодня от тебя не требовалось идеального поведения или правильного ответа. "
+                "Твоя задача была заметить происходящее без оценки — и ты её выполнила. "
+                "Первый шаг к самостоятельности — научиться видеть реальность спокойно.")
+    return "Спасибо за честный ответ ❤️ Ты не обязана отвечать идеально — здесь важно замечать себя и постепенно учиться принимать решения самостоятельно."
+
+def completion_text(n, info, badge_text=""):
+    next_text = "\n\n🏆 Финал завершен. Ты можешь сама." if n == 49 else f"\n\n➡️ Открыт День {n+1}."
+    return f"🎉 <b>День {n} завершен!</b>\n\n+{info[4]} XP{badge_text}{next_text}"
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = db.user(update.effective_user.id)
     if u:
@@ -71,6 +90,9 @@ async def menu(update, context):
         context.user_data["awaiting_question"]=True; await q.message.reply_text("Напиши вопрос одним сообщением — я передам его тренеру.",reply_markup=back_kb())
     elif data.startswith("startday:"): await begin_day(q,int(data.split(":")[1]))
     elif data=="practice": await show_practice(q,context)
+    elif data=="photo":
+        context.user_data["awaiting_photo"]=True
+        await q.message.reply_text("📷 Отправь фото отчёта сюда.\n\nМожно отправить один или несколько снимков — не нужно делать питание идеальным. Просто покажи день таким, какой он был.")
     elif data=="donepractice": await start_reflection(q,context)
     elif data=="hunger_start":
         context.user_data["awaiting_hunger"]=True
@@ -82,7 +104,7 @@ async def menu(update, context):
         value=int(data.split(":")[1]); n=db.user(uid)["current_day"]; db.save_answer(uid,n,"satiety_after",value); context.user_data.pop("awaiting_satiety",None)
         await q.message.reply_text("🌿 Ты отметила свои ощущения.\n\nТеперь остановись на секунду и посмотри на свой ответ.",reply_markup=reflection_buttons())
     elif data=="reflection_start":
-        context.user_data["awaiting_reflection"]=True; n=db.user(uid)["current_day"]; await q.message.reply_text("🤔 Когда ты обычно начинаешь есть — при голоде, по времени или из-за эмоций?\n\nНапиши несколько слов, как есть.")
+        context.user_data["awaiting_reflection"]=True; n=db.user(uid)["current_day"]; await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением. Я сначала дам тебе короткую обратную связь, а потом мы завершим день.")
     elif data=="reflection_skip": await finish_day(q,context,skipped=True)
     elif data=="finish": await finish_day(q,context)
 
@@ -110,15 +132,20 @@ async def show_practice(q,context):
     await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
 
 async def start_reflection(q,context):
-    context.user_data["awaiting_reflection"]=True; n=db.user(q.from_user.id)["current_day"]; await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением.")
+    context.user_data["awaiting_reflection"]=True; n=db.user(q.from_user.id)["current_day"]; await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением. Я сначала дам тебе короткую обратную связь, а потом мы завершим день.")
 
 async def finish_day(q,context,skipped=False):
-    context.user_data.pop("awaiting_reflection",None); n=db.user(q.from_user.id)["current_day"]; reflection="Пропущено" if skipped else ""
+    context.user_data.pop("awaiting_reflection",None); n=db.user(q.from_user.id)["current_day"]; info=day_info(n)
+    if skipped:
+        feedback = "🌿 Рефлексию можно пропустить. Это не ошибка. Главное — ты прошла практику и продолжаешь двигаться дальше ❤️"
+        reflection = "Пропущено"
+    else:
+        feedback = "🌿 Спасибо за честный ответ ❤️"
+        reflection = ""
     if db.complete_day(q.from_user.id,n,reflection):
-        info=day_info(n); db.add_xp(q.from_user.id,info[4]); badge=BADGES.get(n); badge_text=""
+        db.add_xp(q.from_user.id,info[4]); badge=BADGES.get(n); badge_text=""
         if badge and db.add_badge(q.from_user.id,badge): badge_text=f"\n🏆 Новое достижение: {badge}"
-        next_text="\n\n🏆 Финал завершен. Ты можешь сама." if n==49 else f"\n\n➡️ Открыт День {n+1}."
-        await q.message.reply_text(f"🎉 <b>День {n} завершен!</b>\n\n+{info[4]} XP{badge_text}{next_text}",parse_mode="HTML",reply_markup=main_kb())
+        await q.message.reply_text(feedback + "\n\n" + completion_text(n,info,badge_text),parse_mode="HTML",reply_markup=main_kb())
     else: await q.message.reply_text("Этот день уже завершен ❤️",reply_markup=main_kb())
 
 async def handle_text(update,context):
@@ -133,12 +160,12 @@ async def handle_text(update,context):
     if field:
         db.set_system_item(uid,field,text); await update.message.reply_text("Сохранила ❤️\n\nТвою систему можно дополнять в любой момент.",reply_markup=main_kb()); return
     if context.user_data.pop("awaiting_reflection",False):
-        u=db.user(uid); n=u["current_day"]
+        u=db.user(uid); n=u["current_day"]; info=day_info(n)
         if db.complete_day(uid,n,text):
-            info=day_info(n); db.add_xp(uid,info[4]); badge=BADGES.get(n); badge_text=""
+            feedback = reflection_feedback(n,text)
+            db.add_xp(uid,info[4]); badge=BADGES.get(n); badge_text=""
             if badge and db.add_badge(uid,badge): badge_text=f"\n🏆 Новое достижение: {badge}"
-            next_text="\n\n🏆 Финал завершен. Ты можешь сама." if n==49 else f"\n\n➡️ Открыт День {n+1}."
-            await update.message.reply_text(f"🎉 <b>День {n} завершен!</b>\n\n+{info[4]} XP{badge_text}{next_text}",parse_mode="HTML",reply_markup=main_kb())
+            await update.message.reply_text(feedback + "\n\n" + completion_text(n,info,badge_text),parse_mode="HTML",reply_markup=main_kb())
         else: await update.message.reply_text("Этот день уже завершен ❤️",reply_markup=main_kb())
         return
     await update.message.reply_text("Используй меню ниже ❤️",reply_markup=main_kb())
@@ -150,7 +177,7 @@ async def handle_photo(update,context):
     for admin in ADMIN_IDS:
         try: await context.bot.forward_message(admin,update.effective_chat.id,update.message.message_id); await context.bot.send_message(admin,f"📷 Фотоотчет: {u['name']}, день {n}")
         except Exception: pass
-    await update.message.reply_text("Фотоотчет сохранен ❤️\nТеперь возвращайся к практике и нажми «Я ВЫПОЛНИЛА».",reply_markup=main_kb())
+    await update.message.reply_text("Фотоотчет сохранен ❤️\n\nЯ получила его. Ничего исправлять прямо сейчас не нужно — просто возвращайся к практике и нажми «Я ВЫПОЛНИЛА», когда закончишь фиксировать день.",reply_markup=main_kb())
 
 async def show_map(q):
     uid=q.from_user.id; lines=[]
