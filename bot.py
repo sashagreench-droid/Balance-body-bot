@@ -31,7 +31,7 @@ def main_kb():
         [InlineKeyboardButton("👩‍🏫 ЗАДАТЬ ТРЕНЕРУ", callback_data="trainer")],
     ])
 
-def back_kb(): return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ В МЕНЮ", callback_data="home")]])
+def back_kb(): return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")]])
 
 def day_kb(n, status):
     label = "▶️ НАЧАТЬ" if status == "AVAILABLE" else ("▶️ ПРОДОЛЖИТЬ" if status == "IN_PROGRESS" else "↩️ ОТКРЫТЬ ДЕНЬ")
@@ -46,15 +46,33 @@ def scale_kb(prefix):
 def reflection_buttons():
     return InlineKeyboardMarkup([[InlineKeyboardButton("✍️ ОТВЕТИТЬ",callback_data="reflection_start")],[InlineKeyboardButton("⏭ ПРОПУСТИТЬ",callback_data="reflection_skip")]])
 
+def after_photo_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🌿 ПЕРЕЙТИ К РЕФЛЕКСИИ",callback_data="reflection_start")],
+        [InlineKeyboardButton("🤔 МНЕ СЛОЖНО",callback_data="trainer")],
+        [InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")],
+    ])
+
+def hunger_next_kb():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton("🍽️ ЕЩЁ ОДИН ПРИЁМ",callback_data="hunger_start")],
+        [InlineKeyboardButton("🌿 ЗАВЕРШИТЬ И ПЕРЕЙТИ К РЕФЛЕКСИИ",callback_data="reflection_start")],
+        [InlineKeyboardButton("🤔 МНЕ СЛОЖНО",callback_data="trainer")],
+    ])
+
 def reflection_feedback(day, text):
     """Short supportive feedback after a user's reflection; it does not judge the answer."""
+    t = text.strip().lower()
     if day == 1:
-        t = text.lower()
-        if any(word in t for word in ("да", "хотел", "измен", "стыд", "страш", "увид", "оцен")):
+        if any(phrase in t for phrase in ("хотелось изменить", "изменить выбор", "чтобы увид", "тренер увид", "бот увид", "оцен", "стыд", "страшно")):
             return ("Это очень важное наблюдение ❤️\n\n"
-                    "Ты заметила не только то, что ела, но и желание изменить выбор из-за того, что его увидит тренер/бот. "
-                    "Сегодня тебе не нужно ничего исправлять. Ты уже сделала главное — заметила этот момент. "
-                    "Именно с таких честных наблюдений начинается самостоятельность.")
+                    "Ты заметила не только свой рацион, но и момент, когда появляется желание выглядеть «правильно» для другого человека. "
+                    "Сегодня ничего исправлять не нужно. Наоборот — оставляем этот момент таким, какой он был. "
+                    "Ты уже тренируешь самостоятельность: замечать реальность, даже когда хочется её отредактировать.")
+        if any(phrase in t for phrase in ("удив", "не ожид", "впервые замет", "раньше не замеч")):
+            return ("Отличное наблюдение ❤️\n\n"
+                    "Именно такие маленькие открытия нам сейчас и нужны. Сегодня не ищем, что с тобой «не так», — просто собираем честную картину своего питания. "
+                    "Чем точнее ты замечаешь реальность, тем легче потом самостоятельно принимать решения.")
         return ("Спасибо за честный ответ ❤️\n\n"
                 "Сегодня от тебя не требовалось идеального поведения или правильного ответа. "
                 "Твоя задача была заметить происходящее без оценки — и ты её выполнила. "
@@ -102,9 +120,9 @@ async def menu(update, context):
         await q.message.reply_text("🍽️ А теперь после еды: насколько ты сыта?\n\n1 — совсем не сыта\n5 — комфортно сыта\n10 — переела",reply_markup=scale_kb("satiety"))
     elif data.startswith("satiety:"):
         value=int(data.split(":")[1]); n=db.user(uid)["current_day"]; db.save_answer(uid,n,"satiety_after",value); context.user_data.pop("awaiting_satiety",None)
-        await q.message.reply_text("🌿 Ты отметила свои ощущения.\n\nТеперь остановись на секунду и посмотри на свой ответ.",reply_markup=reflection_buttons())
+        await q.message.reply_text("🌿 Записала. Ты можешь отметить ещё один приём пищи, чтобы увидеть несколько эпизодов, или перейти к рефлексии.",reply_markup=hunger_next_kb())
     elif data=="reflection_start":
-        context.user_data["awaiting_reflection"]=True; n=db.user(uid)["current_day"]; await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением. Я сначала дам тебе короткую обратную связь, а потом мы завершим день.")
+        context.user_data.pop("awaiting_hunger",None); context.user_data.pop("awaiting_satiety",None); context.user_data["awaiting_reflection"]=True; n=db.user(uid)["current_day"]; await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением. Я сначала дам тебе короткую обратную связь, а потом мы завершим день.")
     elif data=="reflection_skip": await finish_day(q,context,skipped=True)
     elif data=="finish": await finish_day(q,context)
 
@@ -124,7 +142,7 @@ async def begin_day(q,n):
 async def show_practice(q,context):
     uid=q.from_user.id; n=db.user(uid)["current_day"]; _,practice,_=task_info(n)
     if n == 2:
-        text="📝 <b>ПРАКТИКА</b>\n\nПеред несколькими приемами пищи отметь свой голод, а после еды — сытость.\n\nНе оценивай себя. Просто фиксируй ощущения."
+        text="📝 <b>ПРАКТИКА</b>\n\nПеред несколькими приемами пищи отметь свой голод, а после еды — сытость.\n\nНе оценивай себя. Просто фиксируй ощущения.\n\nМожно сделать несколько отметок в течение дня — после каждой пары бот предложит либо записать ещё один приём пищи, либо перейти к рефлексии."
         buttons=[[InlineKeyboardButton("🍽️ ОТМЕТИТЬ ГОЛОД",callback_data="hunger_start")],[InlineKeyboardButton("🤔 МНЕ СЛОЖНО",callback_data="trainer")]]
     else:
         text=f"📝 <b>ПРАКТИКА</b>\n\n{practice}\n\nКогда закончишь — нажми «Я ВЫПОЛНИЛА»."
@@ -132,7 +150,7 @@ async def show_practice(q,context):
     await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
 
 async def start_reflection(q,context):
-    context.user_data["awaiting_reflection"]=True; n=db.user(q.from_user.id)["current_day"]; await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением. Я сначала дам тебе короткую обратную связь, а потом мы завершим день.")
+    context.user_data.pop("awaiting_hunger",None); context.user_data.pop("awaiting_satiety",None); context.user_data["awaiting_reflection"]=True; n=db.user(q.from_user.id)["current_day"]; await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением. Я сначала дам тебе короткую обратную связь, а потом мы завершим день.")
 
 async def finish_day(q,context,skipped=False):
     context.user_data.pop("awaiting_reflection",None); n=db.user(q.from_user.id)["current_day"]; info=day_info(n)
@@ -177,7 +195,7 @@ async def handle_photo(update,context):
     for admin in ADMIN_IDS:
         try: await context.bot.forward_message(admin,update.effective_chat.id,update.message.message_id); await context.bot.send_message(admin,f"📷 Фотоотчет: {u['name']}, день {n}")
         except Exception: pass
-    await update.message.reply_text("Фотоотчет сохранен ❤️\n\nЯ получила его. Ничего исправлять прямо сейчас не нужно — просто возвращайся к практике и нажми «Я ВЫПОЛНИЛА», когда закончишь фиксировать день.",reply_markup=main_kb())
+    await update.message.reply_text("Фотоотчет сохранен ❤️\n\nЯ получила его. Сегодня ничего не нужно исправлять — нам важно увидеть реальный день таким, какой он был.\n\nКогда будешь готова, перейди к рефлексии: я помогу тебе разобрать наблюдение и дам короткую обратную связь.",reply_markup=after_photo_kb())
 
 async def show_map(q):
     uid=q.from_user.id; lines=[]
