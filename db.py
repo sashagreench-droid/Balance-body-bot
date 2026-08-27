@@ -17,6 +17,7 @@ def init_db():
         current_day INTEGER DEFAULT 1,
         xp INTEGER DEFAULT 0,
         reminder_hour INTEGER DEFAULT 9,
+        reminder_sent_date TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     );
     CREATE TABLE IF NOT EXISTS days (
@@ -53,7 +54,12 @@ def init_db():
         PRIMARY KEY (tg_id, field)
     );
     """)
-    con.commit(); con.close()
+    # Safe migration for databases created by earlier versions.
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(users)").fetchall()}
+    if "reminder_sent_date" not in cols:
+        con.execute("ALTER TABLE users ADD COLUMN reminder_sent_date TEXT")
+    con.commit()
+    con.close()
 
 def ensure_user(tg_id, name):
     con = connect()
@@ -86,7 +92,7 @@ def add_xp(tg_id, amount):
     con=connect(); con.execute("UPDATE users SET xp=xp+? WHERE tg_id=?",(amount,tg_id)); con.commit(); con.close()
 
 def save_answer(tg_id,day,kind,value):
-    con=connect(); con.execute("INSERT INTO answers(tg_id,day,kind,value) VALUES(?,?,?,?)",(tg_id,day,kind,value)); con.commit(); con.close()
+    con=connect(); con.execute("INSERT INTO answers(tg_id,day,kind,value) VALUES(?,?,?,?)",(tg_id,day,kind,str(value))); con.commit(); con.close()
 
 def save_photo(tg_id,day,file_id,caption):
     con=connect(); con.execute("INSERT INTO photos(tg_id,day,file_id,caption) VALUES(?,?,?,?)",(tg_id,day,file_id,caption)); con.commit(); con.close()
@@ -105,3 +111,13 @@ def set_system_item(tg_id,field,value):
 
 def system_items(tg_id):
     con=connect(); rows=con.execute("SELECT field,value FROM system_items WHERE tg_id=?",(tg_id,)).fetchall(); con.close(); return {r["field"]:r["value"] for r in rows}
+
+def claim_reminder(tg_id, date_key):
+    """Atomically claim today's reminder. Returns True only once per user/date."""
+    con = connect()
+    cur = con.execute(
+        "UPDATE users SET reminder_sent_date=? WHERE tg_id=? AND (reminder_sent_date IS NULL OR reminder_sent_date<>?)",
+        (date_key, tg_id, date_key),
+    )
+    con.commit(); con.close()
+    return cur.rowcount == 1
