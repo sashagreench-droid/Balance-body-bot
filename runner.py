@@ -56,25 +56,30 @@ async def menu_fixed(update, context):
 
         try:
             u = db.user(uid)
-
-            # Recovery path: if the user already reached the main menu but
-            # the active DB has no user row, recreate the minimal course state.
             if not u:
-                name = (q.from_user.first_name or "").strip()[:80] or "Участник"
-                db.ensure_user(uid, name)
-                u = db.user(uid)
+                # Never recreate a user here: that would reset an existing
+                # course to Day 1 when the SQLite database is missing.
+                await q.message.reply_text(
+                    "Не могу найти твой прогресс ❤️ Данные курса не должны сбрасываться при перезапуске. "
+                    "Проверь постоянное хранилище SQLite в Railway, а затем нажми «ПРОДОЛЖИТЬ» ещё раз.",
+                    reply_markup=bot.main_kb(),
+                )
+                return
 
             n = int(u["current_day"])
             row = db.day_row(uid, n)
             if not row:
-                db.ensure_user(uid, u["name"] or "Участник")
+                await q.message.reply_text(
+                    "Не могу найти текущий день в базе ❤️ Проверь постоянное хранилище SQLite в Railway.",
+                    reply_markup=bot.main_kb(),
+                )
+                return
 
-            # "Продолжить" opens the current day directly, without
-            # an intermediate "НАЧАТЬ" screen.
+            # "Продолжить" opens exactly the saved current day.
             await bot.begin_day(q, n)
         except Exception:
             await q.message.reply_text(
-                "Я здесь ❤️ Не удалось открыть день. Попробуй нажать «ПРОДОЛЖИТЬ» ещё раз.",
+                "Я здесь ❤️ Не удалось открыть сохранённый день. Проверь постоянное хранилище SQLite в Railway и попробуй «ПРОДОЛЖИТЬ» ещё раз.",
                 reply_markup=bot.main_kb(),
             )
         return
