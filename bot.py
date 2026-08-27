@@ -35,10 +35,14 @@ def main_kb():
 def back_kb(): return InlineKeyboardMarkup([[InlineKeyboardButton("⬅️ В МЕНЮ", callback_data="home")]])
 
 def day_kb(n, status):
-    if status == "AVAILABLE": label="▶️ НАЧАТЬ"
-    elif status == "IN_PROGRESS": label="▶️ ПРОДОЛЖИТЬ"
-    else: label="↩️ ОТКРЫТЬ ДЕНЬ"
+    label = "▶️ НАЧАТЬ" if status == "AVAILABLE" else ("▶️ ПРОДОЛЖИТЬ" if status == "IN_PROGRESS" else "↩️ ОТКРЫТЬ ДЕНЬ")
     return InlineKeyboardMarkup([[InlineKeyboardButton(label, callback_data=f"startday:{n}")],[InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")]])
+
+def scale_kb(prefix):
+    return InlineKeyboardMarkup([[InlineKeyboardButton(str(i), callback_data=f"{prefix}:{i}") for i in range(1,6)]])
+
+def reflection_buttons():
+    return InlineKeyboardMarkup([[InlineKeyboardButton("✍️ ОТВЕТИТЬ",callback_data="reflection_start")],[InlineKeyboardButton("⏭ ПРОПУСТИТЬ",callback_data="reflection_skip")]])
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     u = db.user(update.effective_user.id)
@@ -54,7 +58,7 @@ async def got_name(update, context):
     return ConversationHandler.END
 
 async def menu(update, context):
-    q=update.callback_query; await q.answer(); data=q.data
+    q=update.callback_query; await q.answer(); data=q.data; uid=q.from_user.id
     if data=="home": await q.message.reply_text("Главное меню ❤️",reply_markup=main_kb())
     elif data=="continue": await show_day(q)
     elif data=="map": await show_map(q)
@@ -68,10 +72,17 @@ async def menu(update, context):
         context.user_data["awaiting_question"]=True; await q.message.reply_text("Напиши вопрос одним сообщением — я передам его тренеру.",reply_markup=back_kb())
     elif data.startswith("startday:"): await begin_day(q,int(data.split(":")[1]))
     elif data=="practice": await show_practice(q,context)
-    elif data=="donepractice":
-        context.user_data["awaiting_reflection"]=True
-        n=db.user(q.from_user.id)["current_day"]; await q.message.reply_text("Теперь рефлексия 🌿\n\n"+task_info(n)[2],reply_markup=back_kb())
-    elif data=="photo": context.user_data["awaiting_photo"]=True; await q.message.reply_text("Отправь фото отчёта сюда. Если фото не требуется для твоего дня — можешь просто перейти к практике.")
+    elif data=="donepractice": await start_reflection(q,context)
+    elif data.startswith("hunger:"):
+        value=int(data.split(":")[1]); db.save_answer(uid,db.user(uid)["current_day"],"hunger_before",value)
+        context.user_data["awaiting_satiety"]=True
+        await q.message.reply_text("🍽️ А теперь оцени сытость после еды:\n\n1 — совсем не сыта\n2 — могла бы ещё поесть\n3 — комфортно сыта\n4 — очень сыта\n5 — переела",reply_markup=scale_kb("satiety"))
+    elif data.startswith("satiety:"):
+        value=int(data.split(":")[1]); n=db.user(uid)["current_day"]; db.save_answer(uid,n,"satiety_after",value); context.user_data.pop("awaiting_satiety",None)
+        await q.message.reply_text("🌿 Ты отметила свои ощущения.\n\nТеперь остановись на секунду и посмотри на свой ответ.",reply_markup=reflection_buttons())
+    elif data=="reflection_start":
+        context.user_data["awaiting_reflection"]=True; n=db.user(uid)["current_day"]; await q.message.reply_text("🤔 Когда ты обычно начинаешь есть — при голоде, по времени или из-за эмоций?\n\nНапиши несколько слов, как есть.")
+    elif data=="reflection_skip": await finish_day(q,context,skipped=True)
     elif data=="finish": await finish_day(q,context)
 
 async def show_day(q):
@@ -89,13 +100,29 @@ async def begin_day(q,n):
     await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
 
 async def show_practice(q,context):
-    n=db.user(q.from_user.id)["current_day"]; info=day_info(n); task,practice,reflection=task_info(n)
-    buttons=[[InlineKeyboardButton("📷 ОТПРАВИТЬ ФОТО",callback_data="photo")],[InlineKeyboardButton("✅ Я ВЫПОЛНИЛА",callback_data="donepractice")],[InlineKeyboardButton("🤔 МНЕ СЛОЖНО",callback_data="trainer")]]
-    await q.message.reply_text(f"📝 <b>ПРАКТИКА</b>\n\n{practice}\n\nКогда закончишь — нажми «Я ВЫПОЛНИЛА».",parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
+    uid=q.from_user.id; n=db.user(uid)["current_day"]; _,practice,_=task_info(n)
+    if n == 2:
+        text="📝 <b>ПРАКТИКА</b>\n\nПеред несколькими приемами пищи отметь свой голод, а после еды — сытость.\n\nНе оценивай себя. Просто фиксируй ощущения."
+        buttons=[[InlineKeyboardButton("🍽️ ОТМЕТИТЬ ГОЛОД",callback_data="hunger_start")],[InlineKeyboardButton("🤔 МНЕ СЛОЖНО",callback_data="trainer")]]
+    else:
+        text=f"📝 <b>ПРАКТИКА</b>\n\n{practice}\n\nКогда закончишь — нажми «Я ВЫПОЛНИЛА»."
+        buttons=[[InlineKeyboardButton("📷 ОТПРАВИТЬ ФОТО",callback_data="photo")],[InlineKeyboardButton("✅ Я ВЫПОЛНИЛА",callback_data="donepractice")],[InlineKeyboardButton("🤔 МНЕ СЛОЖНО",callback_data="trainer")]]
+    await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
 
-async def finish_day(q,context):
+async def start_reflection(q,context):
     context.user_data["awaiting_reflection"]=True; n=db.user(q.from_user.id)["current_day"]
-    await q.message.reply_text("Последний шаг 🌿\n\n"+task_info(n)[2])
+    await q.message.reply_text("🌿 Теперь рефлексия\n\n"+task_info(n)[2]+"\n\nНапиши ответ одним сообщением.")
+
+async def finish_day(q,context,skipped=False):
+    context.user_data.pop("awaiting_reflection",None)
+    n=db.user(q.from_user.id)["current_day"]
+    reflection="Пропущено" if skipped else ""
+    if db.complete_day(q.from_user.id,n,reflection):
+        info=day_info(n); db.add_xp(q.from_user.id,info[4]); badge=BADGES.get(n); badge_text=""
+        if badge and db.add_badge(q.from_user.id,badge): badge_text=f"\n🏆 Новое достижение: {badge}"
+        next_text="\n\n🏆 Финал завершен. Ты можешь сама." if n==49 else f"\n\n➡️ Открыт День {n+1}."
+        await q.message.reply_text(f"🎉 <b>День {n} завершен!</b>\n\n+{info[4]} XP{badge_text}{next_text}",parse_mode="HTML",reply_markup=main_kb())
+    else: await q.message.reply_text("Этот день уже завершен ❤️",reply_markup=main_kb())
 
 async def handle_text(update,context):
     uid=update.effective_user.id; text=update.message.text.strip()
@@ -113,9 +140,7 @@ async def handle_text(update,context):
         if db.complete_day(uid,n,text):
             info=day_info(n); db.add_xp(uid,info[4]); badge=BADGES.get(n); badge_text=""
             if badge and db.add_badge(uid,badge): badge_text=f"\n🏆 Новое достижение: {badge}"
-            if n==49:
-                next_text="\n\n🏆 Финал завершен. Ты можешь сама."
-            else: next_text=f"\n\n➡️ Открыт День {n+1}."
+            next_text="\n\n🏆 Финал завершен. Ты можешь сама." if n==49 else f"\n\n➡️ Открыт День {n+1}."
             await update.message.reply_text(f"🎉 <b>День {n} завершен!</b>\n\n+{info[4]} XP{badge_text}{next_text}",parse_mode="HTML",reply_markup=main_kb())
         else: await update.message.reply_text("Этот день уже завершен ❤️",reply_markup=main_kb())
         return
@@ -142,8 +167,7 @@ async def show_map(q):
     await q.message.reply_text("🗺 <b>МОЯ КАРТА</b>\n\n"+"\n".join(lines),parse_mode="HTML",reply_markup=back_kb())
 
 async def show_skills(q):
-    uid=q.from_user.id; done=sum(1 for n in range(1,50) if db.day_row(uid,n)["status"]=="COMPLETED")
-    text="🧠 <b>МОИ НАВЫКИ</b>\n\n"
+    uid=q.from_user.id; done=sum(1 for n in range(1,50) if db.day_row(uid,n)["status"]=="COMPLETED"); text="🧠 <b>МОИ НАВЫКИ</b>\n\n"
     for n,title,level,skill,xp in DAYS: text += ("🟢 " if n<=done else "🔒 ")+skill+"\n"
     await q.message.reply_text(text,parse_mode="HTML",reply_markup=back_kb())
 
@@ -159,32 +183,31 @@ async def show_system(q):
     for key,label in SYSTEM_FIELDS: text += f"{label}: {items.get(key,'—')}\n"
     buttons=[]
     for key,label in SYSTEM_FIELDS: buttons.append([InlineKeyboardButton(label,callback_data=f"sys:{key}")])
-    buttons.append([InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")])
-    await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
+    buttons.append([InlineKeyboardButton("⬅️ В МЕНЮ",callback_data="home")]); await q.message.reply_text(text,parse_mode="HTML",reply_markup=InlineKeyboardMarkup(buttons))
 
 async def ask_system(q,field,context):
     label=next((label for key,label in SYSTEM_FIELDS if key==field),field); context.user_data["awaiting_system"]=field
     await q.message.reply_text(f"{label}\n\nНапиши, что ты хочешь сохранить в этом разделе. Это можно будет изменить позже.")
 
 async def show_snacks(q):
-    text="🥪 <b>ПЕРЕКУСЫ НА СКОРУЮ РУКУ</b>\n\nЕсли нет времени готовить, не успела взять еду или нужно съесть что-то быстро:\n\n"
-    for icon,name,desc in SNACKS: text += f"{icon} <b>{name}</b>\n{desc}\n\n"
+    text="🥪 <b>ПЕРЕКУСЫ НА СКОРУЮ РУКУ</b>\n\nЕсли нет времени готовить, не успела взять еду или нужно съесть что-то быстро:\n\n"+"\n".join(f"{icon} <b>{name}</b>\n{desc}" for icon,name,desc in SNACKS)
     await q.message.reply_text(text,parse_mode="HTML",reply_markup=back_kb())
 
 async def reminders(context):
-    now=datetime.now(TZ)
+    now=datetime.now(TZ); date_key=now.date().isoformat()
     if now.hour != REMINDER_HOUR: return
     con=db.connect(); rows=con.execute("SELECT * FROM users WHERE current_day<=49").fetchall(); con.close()
     for u in rows:
+        if not db.claim_reminder(u["tg_id"],date_key): continue
         try: await context.bot.send_message(u["tg_id"],f"🌿 Добрый день, {u['name']}!\nТвой День {u['current_day']} из 49 ждёт тебя.",reply_markup=main_kb())
         except Exception: pass
 
 def main():
-    if not TOKEN: raise RuntimeError("Не задан BOT_TOKEN в .env")
+    if not TOKEN: raise RuntimeError("Не задан BOT_TOKEN")
     db.init_db(); app=Application.builder().token(TOKEN).build()
-    conv=ConversationHandler(entry_points=[CommandHandler("start",start)],states={ASK_NAME:[MessageHandler(filters.TEXT & ~filters.COMMAND,got_name)]},fallbacks=[CommandHandler("start",start)])
+    conv=ConversationHandler(entry_points=[CommandHandler("start",start)],states={ASK_NAME:[MessageHandler(filters.TEXT & ~filters.COMMAND,got_name)]},fallbacks=[])
     app.add_handler(conv); app.add_handler(CallbackQueryHandler(menu)); app.add_handler(MessageHandler(filters.PHOTO,handle_photo)); app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND,handle_text))
-    if app.job_queue: app.job_queue.run_repeating(reminders,interval=60,first=10)
-    print("Bot started."); app.run_polling()
+    if app.job_queue: app.job_queue.run_repeating(reminders,interval=60,first=5)
+    app.run_polling()
 
-if __name__=="__main__": main()
+if __name__ == "__main__": main()
