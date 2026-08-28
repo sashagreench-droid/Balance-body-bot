@@ -1,5 +1,6 @@
 import bot
 import db
+from bju_quiz import QUESTIONS, question_keyboard, result_keyboard
 
 PENDING = "__REFLECTION_PENDING__"
 
@@ -7,6 +8,7 @@ _original_start_reflection = bot.start_reflection
 _original_handle_text = bot.handle_text
 _original_menu = bot.menu
 _original_reflection_feedback = bot.reflection_feedback
+_original_show_practice = bot.show_practice
 
 
 def _has(text, *parts):
@@ -17,11 +19,9 @@ def reflection_feedback_fixed(day, text, uid=None):
     """Answer-aware reflection feedback without changing the approved course text."""
     t = text.strip().lower()
 
-    # Keep the already-developed, day-specific logic for Days 1–2.
     if day in (1, 2):
         return _original_reflection_feedback(day, text, uid)
 
-    # Day 3 — portion awareness.
     if day == 3:
         if _has(t, "больш", "огром", "много"):
             return ("Спасибо за честное наблюдение ❤️\n\n"
@@ -35,7 +35,6 @@ def reflection_feedback_fixed(day, text, uid=None):
                 "Сегодня важно было не угадать граммы, а посмотреть на привычный размер порции внимательнее. "
                 "Если ожидание и реальность отличались — это уже полезная информация о твоём питании.")
 
-    # Day 4 — honesty without filters.
     if day == 4:
         if _has(t, "стыд", "скры", "не хот", "сложно отправ", "трудно отправ", "неудоб"):
             return ("Спасибо, что заметила этот момент ❤️\n\n"
@@ -44,7 +43,6 @@ def reflection_feedback_fixed(day, text, uid=None):
         return ("Ты сегодня сделала важную вещь ❤️\n\n"
                 "Ты показала рацион без попытки сделать его идеальным. Это позволяет увидеть не отдельный «правильный» день, а настоящую картину, с которой можно работать дальше.")
 
-    # Day 5 — snack triggers, which was previously always returning the same text.
     if day == 5:
         if _has(t, "стресс", "нерв", "тревог", "пережив", "расстро", "зл", "груст"):
             return ("Ты заметила важную связь ❤️\n\n"
@@ -70,7 +68,6 @@ def reflection_feedback_fixed(day, text, uid=None):
                 "Ты уже начала искать не только сам перекус, но и момент, который ему предшествует. "
                 "Попробуй дальше замечать три вещи: что происходило перед этим, что ты чувствовала и действительно ли была голодна. Это поможет увидеть свой сценарий без оценки.")
 
-    # Days 6–49: choose feedback from the actual words instead of one universal reply.
     if _has(t, "стресс", "эмоци", "тревог", "нерв", "зл", "груст", "устал"):
         return ("Ты заметила эмоциональный контекст ❤️\n\n"
                 "Это важное наблюдение: ты связала своё поведение с состоянием, в котором находилась. "
@@ -132,10 +129,113 @@ async def handle_text_fixed(update, context):
     await _original_handle_text(update, context)
 
 
+async def show_practice_fixed(q, context):
+    """Day 8 uses an interactive BJU test as its practice."""
+    uid = q.from_user.id
+    n = db.user(uid)["current_day"]
+
+    if n != 8:
+        await _original_show_practice(q, context)
+        return
+
+    text = (
+        "📝 <b>ПРАКТИКА</b>\n\n"
+        "Пройди короткий мини-тест на распределение продуктов по БЖУ.\n\n"
+        "Твоя задача — не набрать идеальный результат, а проверить, насколько ты уже различаешь белки, жиры и углеводы."
+    )
+    buttons = [
+        [bot.InlineKeyboardButton("📝 ПРОЙТИ МИНИ-ТЕСТ", callback_data="bju_start")],
+        [bot.InlineKeyboardButton("🤔 МНЕ СЛОЖНО", callback_data="trainer")],
+    ]
+    await q.message.reply_text(text, parse_mode="HTML", reply_markup=bot.InlineKeyboardMarkup(buttons))
+
+
+async def bju_start(q, context):
+    context.user_data["bju_quiz_index"] = 0
+    context.user_data["bju_quiz_score"] = 0
+    context.user_data["bju_quiz_answers"] = []
+    await q.message.reply_text(
+        "🧠 <b>МИНИ-ТЕСТ БЖУ</b>\n\n5 вопросов. Выбирай тот вариант, который кажется тебе наиболее правильным.",
+        parse_mode="HTML",
+    )
+    await q.message.reply_text(
+        f"Вопрос 1 из {len(QUESTIONS)}\n\n{QUESTIONS[0]['text']}",
+        reply_markup=question_keyboard(0),
+    )
+
+
+async def bju_answer(q, context, question_index, option_index):
+    current = context.user_data.get("bju_quiz_index")
+    if current is None:
+        await q.answer("Сначала запусти тест ❤️", show_alert=True)
+        return
+    if question_index != current:
+        await q.answer("Этот вопрос уже пройден ❤️")
+        return
+
+    question = QUESTIONS[question_index]
+    correct = option_index == question["correct"]
+    if correct:
+        context.user_data["bju_quiz_score"] = context.user_data.get("bju_quiz_score", 0) + 1
+
+    context.user_data.setdefault("bju_quiz_answers", []).append({
+        "question": question_index + 1,
+        "option": option_index + 1,
+        "correct": correct,
+    })
+    db.save_answer(q.from_user.id, 8, f"bju_q{question_index + 1}", option_index + 1)
+    await q.answer("Верно ❤️" if correct else "Записала ❤️")
+
+    prefix = "✅ Верно!" if correct else "💡 Посмотри на объяснение:"
+    feedback = f"{prefix}\n\n{question['explain']}"
+    next_index = question_index + 1
+
+    if next_index < len(QUESTIONS):
+        context.user_data["bju_quiz_index"] = next_index
+        await q.message.reply_text(feedback)
+        await q.message.reply_text(
+            f"Вопрос {next_index + 1} из {len(QUESTIONS)}\n\n{QUESTIONS[next_index]['text']}",
+            reply_markup=question_keyboard(next_index),
+        )
+        return
+
+    score = context.user_data.get("bju_quiz_score", 0)
+    context.user_data["bju_quiz_index"] = None
+    db.save_answer(q.from_user.id, 8, "bju_quiz_score", score)
+
+    if score == len(QUESTIONS):
+        level_text = "Отлично — ты уверенно различаешь БЖУ."
+    elif score >= 3:
+        level_text = "Хороший результат — основа уже есть. Ошибки можно спокойно разобрать."
+    else:
+        level_text = "Это нормально — тест как раз показал, что стоит закрепить."
+
+    await q.message.reply_text(
+        feedback +
+        f"\n\n🎉 <b>Тест завершён!</b>\n\nРезультат: <b>{score}/{len(QUESTIONS)}</b>\n{level_text}\n\nТеперь переходи к завершению практики.",
+        parse_mode="HTML",
+        reply_markup=result_keyboard(),
+    )
+
+
 async def menu_fixed(update, context):
     q = update.callback_query
+    data = q.data if q else ""
 
-    if q and q.data == "continue":
+    if data == "bju_start":
+        await q.answer()
+        await bju_start(q, context)
+        return
+
+    if data.startswith("bju_answer:"):
+        parts = data.split(":")
+        if len(parts) != 3:
+            await q.answer("Не удалось прочитать ответ.", show_alert=True)
+            return
+        await bju_answer(q, context, int(parts[1]), int(parts[2]))
+        return
+
+    if data == "continue":
         await q.answer()
         uid = q.from_user.id
 
@@ -173,5 +273,6 @@ bot.start_reflection = start_reflection_fixed
 bot.handle_text = handle_text_fixed
 bot.menu = menu_fixed
 bot.reflection_feedback = reflection_feedback_fixed
+bot.show_practice = show_practice_fixed
 
 bot.main()
