@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="900" viewBox="0 0 900 900">
+<rect width="900" height="900" fill="#171717"/>
+<text x="45" y="70" fill="#D6B07A" font-family="Arial,sans-serif" font-size="42" font-weight="700">ТОП-15</text>
+<text x="45" y="115" fill="#fff" font-family="Arial,sans-serif" font-size="34" font-weight="700">БЕЛКОВЫХ ПРОДУКТОВ</text>
+<text x="45" y="150" fill="#D6B07A" font-family="Arial,sans-serif" font-size="18">г белка на 100 г продукта</text>
+<g font-family="Arial,sans-serif">
+<text x="55" y="215" fill="#D6B07A" font-size="24" font-weight="700">01</text><text x="105" y="215" fill="#fff" font-size="22">Куриная грудка</text><text x="105" y="245" fill="#D6B07A" font-size="20">23 г</text>
+<text x="355" y="215" fill="#D6B07A" font-size="24" font-weight="700">02</text><text x="405" y="215" fill="#fff" font-size="22">Индейка</text><text x="405" y="245" fill="#D6B07A" font-size="20">22 г</text>
+<text x="655" y="215" fill="#D6B07A" font-size="24" font-weight="700">03</text><text x="705" y="215" fill="#fff" font-size="22">Постная говядина</text><text x="705" y="245" fill="#D6B07A" font-size="20">21–22 г</text>
+<text x="55" y="310" fill="#D6B07A" font-size="24" font-weight="700">04</text><text x="105" y="310" fill="#fff" font-size="22">Тунец</text><text x="105" y="340" fill="#D6B07A" font-size="20">24–25 г</text>
+<text x="355" y="310" fill="#D6B07A" font-size="24" font-weight="700">05</text><text x="405" y="310" fill="#fff" font-size="22">Семга</text><text x="405" y="340" fill="#D6B07A" font-size="20">20–22 г</text>
+<text x="655" y="310" fill="#D6B07A" font-size="24" font-weight="700">06</text><text x="705" y="310" fill="#fff" font-size="22">Креветки</text><text x="705" y="340" fill="#D6B07A" font-size="20">20–22 г</text>
+<text x="55" y="405" fill="#D6B07A" font-size="24" font-weight="700">07</text><text x="105" y="405" fill="#fff" font-size="22">Яйцо куриное</text><text x="105" y="435" fill="#D6B07A" font-size="20">13 г</text>
+<text x="355" y="405" fill="#D6B07A" font-size="24" font-weight="700">08</text><text x="405" y="405" fill="#fff" font-size="22">Творог 0–5%</text><text x="405" y="435" fill="#D6B07A" font-size="20">16–18 г</text>
+<text x="655" y="405" fill="#D6B07A" font-size="24" font-weight="700">09</text><text x="705" y="405" fill="#fff" font-size="22">Греческий йогурт</text><text x="705" y="435" fill="#D6B07A" font-size="20">8–10 г</text>
+<text x="55" y="500" fill="#D6B07A" font-size="24" font-weight="700">10</text><text x="105" y="500" fill="#fff" font-size="22">Тофу</text><text x="105" y="530" fill="#D6B07A" font-size="20">12–16 г</text>
+<text x="355" y="500" fill="#D6B07A" font-size="24" font-weight="700">11</text><text x="405" y="500" fill="#fff" font-size="22">Чечевица (сухая)</text><text x="405" y="530" fill="#D6B07A" font-size="20">24 г</text>
+<text x="655" y="500" fill="#D6B07A" font-size="24" font-weight="700">12</text><text x="705" y="500" fill="#fff" font-size="22">Нут (сухой)</text><text x="705" y="530" fill="#D6B07A" font-size="20">20 г</text>
+<text x="55" y="595" fill="#D6B07A" font-size="24" font-weight="700">13</text><text x="105" y="595" fill="#fff" font-size="22">Протеин сывороточный</text><text x="105" y="625" fill="#D6B07A" font-size="20">75–85 г</text>
+<text x="355" y="595" fill="#D6B07A" font-size="24" font-weight="700">14</text><text x="405" y="595" fill="#fff" font-size="22">Арахисовая паста</text><text x="405" y="625" fill="#D6B07A" font-size="20">25 г</text>
+<text x="655" y="595" fill="#D6B07A" font-size="24" font-weight="700">15</text><text x="705" y="595" fill="#fff" font-size="22">Сыр / молочные продукты</text><text x="705" y="625" fill="#D6B07A" font-size="20">ориентир по этикетке</text>
+</g>
+<line x1="45" y1="700" x2="855" y2="700" stroke="#D6B07A" stroke-width="2"/>
+<text x="45" y="750" fill="#fff" font-family="Arial,sans-serif" font-size="25" font-weight="700">Сохрани эту шпаргалку</text>
+<text x="45" y="790" fill="#bbb" font-family="Arial,sans-serif" font-size="20">чтобы быстро выбирать удобные источники белка</text>
+<text x="45" y="830" fill="#D6B07A" font-family="Arial,sans-serif" font-size="18">Balance Body • День 12</text>
+</svg>
