@@ -144,6 +144,30 @@ async def show_practice(q, context):
 bot.show_practice = show_practice
 
 
+_original_reflection_feedback = bot.reflection_feedback
+
+
+def reflection_feedback(day, text, uid=None):
+    if day == 12:
+        t = text.strip().lower()
+        if any(p in t for p in ("йогурт", "яйц", "яйцо", "творог", "сыр", "куриц", "рыб", "лосос", "индейк", "мяс", "белок")):
+            return (
+                "Хороший выбор ❤️\n\n"
+                "Йогурт и яйца — понятные и удобные источники белка, которые легко встроить в обычный день. "
+                "Особенно ценно, что ты сразу назвала конкретные продукты, а не просто «что-нибудь белковое». "
+                "Теперь у тебя уже есть 2 простых варианта, к которым можно обращаться, когда нужно добрать белок."
+            )
+        return (
+            "Хороший ответ ❤️\n\n"
+            "Ты уже начала формировать свою личную белковую базу. "
+            "Главное сейчас — не искать идеальные продукты, а выбрать те источники белка, которые тебе действительно удобно есть регулярно."
+        )
+    return _original_reflection_feedback(day, text, uid)
+
+
+bot.reflection_feedback = reflection_feedback
+
+
 _original_menu = bot.menu
 
 
