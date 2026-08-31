@@ -25,6 +25,9 @@ content.DAY_TASKS[27] = (
     "Какой вариант получился самым простым?\nКакой из пяти ты реально будешь использовать чаще всего?\nЕсть ли среди них вариант, который можно держать дома как «аварийный» ужин или обед?"
 )
 
+# Apply the previous patch chain first so Day 27 keeps Day 26-specific feedback for other days.
+runpy.run_module("day26_patch", run_name="__main__")
+
 # Day 27: specific feedback instead of the generic reflection template.
 _previous_feedback = bot.reflection_feedback
 
@@ -60,7 +63,7 @@ def reflection_feedback(day, text, uid=None):
             "Дополни ответ до пяти вариантов и рядом укажи примерное время приготовления каждого. Для каждого блюда проверь простую конструкцию: белок + источник углеводов + овощи/фрукты, если это полноценный прием пищи. ❤️"
         )
 
-    if "не знаю" in t or "не знаю" in t or "сложно" in t:
+    if "не знаю" in t or "сложно" in t:
         return (
             "🌿 Если сложно придумать пять вариантов сразу — начни с продуктов, которые обычно уже есть дома.\n\n"
             "Выбери один быстрый источник белка, один удобный источник углеводов и добавь овощи или фрукт. Например: готовая курица + хлеб + овощи; творог + ягоды + орехи; яйца + тост + овощи.\n\n"
@@ -80,6 +83,3 @@ def reflection_feedback(day, text, uid=None):
 
 
 bot.reflection_feedback = reflection_feedback
-
-# Keep the existing patch chain and startup logic.
-runpy.run_module("day26_patch", run_name="__main__")
