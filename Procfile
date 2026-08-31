@@ -1,1 +1,1 @@
-web: python day23_patch.py
+web: python day24_patch.py
