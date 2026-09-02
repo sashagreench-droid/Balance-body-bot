@@ -5,10 +5,10 @@ import bot
 _real_main = bot.main
 bot.main = lambda: None
 try:
-    runpy.run_module("day29_patch", run_name="__main__")
+    runpy.run_module("day30_patch", run_name="__main__")
     runpy.run_module("day29_state_patch", run_name="__main__")
 finally:
     bot.main = _real_main
 
-# Start only after Day 29 and all previous patches have been applied.
+# Start only after Day 30 and all previous patches have been applied.
 bot.main()
