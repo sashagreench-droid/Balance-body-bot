@@ -64,16 +64,38 @@ def init_db():
     cols = {r["name"] for r in con.execute("PRAGMA table_info(users)").fetchall()}
     if "reminder_sent_date" not in cols:
         con.execute("ALTER TABLE users ADD COLUMN reminder_sent_date TEXT")
-    con.commit(); con.close()
+
+    # Repair users created by older versions of the bot where some day rows
+    # could be missing. Never overwrite existing rows or their progress.
+    users = con.execute("SELECT tg_id, current_day FROM users").fetchall()
+    for u in users:
+        current_day = max(1, min(int(u["current_day"] or 1), 49))
+        for d in range(1, 50):
+            if d < current_day:
+                status = "COMPLETED"
+            elif d == current_day:
+                status = "AVAILABLE"
+            else:
+                status = "LOCKED"
+            con.execute(
+                "INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)",
+                (u["tg_id"], d, status),
+            )
+
+    con.commit()
+    con.close()
 
 
 def ensure_user(tg_id, name):
     con = connect()
     con.execute("INSERT OR IGNORE INTO users(tg_id,name) VALUES(?,?)", (tg_id,name))
+    user_row = con.execute("SELECT current_day FROM users WHERE tg_id=?", (tg_id,)).fetchone()
+    current_day = max(1, min(int(user_row["current_day"] or 1), 49))
     for d in range(1,50):
-        status = "AVAILABLE" if d == 1 else "LOCKED"
+        status = "COMPLETED" if d < current_day else ("AVAILABLE" if d == current_day else "LOCKED")
         con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)", (tg_id,d,status))
-    con.commit(); con.close()
+    con.commit()
+    con.close()
 
 
 def user(tg_id):
@@ -81,7 +103,20 @@ def user(tg_id):
 
 
 def day_row(tg_id, day):
-    con=connect(); row=con.execute("SELECT * FROM days WHERE tg_id=? AND day=?",(tg_id,day)).fetchone(); con.close(); return row
+    con = connect()
+    row = con.execute("SELECT * FROM days WHERE tg_id=? AND day=?", (tg_id, day)).fetchone()
+    if row is None:
+        # Last-resort self-healing for an incomplete/legacy DB. If the requested
+        # day is the user's current day, make it available so «Продолжить» works.
+        u = con.execute("SELECT current_day FROM users WHERE tg_id=?", (tg_id,)).fetchone()
+        if u:
+            current_day = max(1, min(int(u["current_day"] or 1), 49))
+            status = "COMPLETED" if day < current_day else ("AVAILABLE" if day == current_day else "LOCKED")
+            con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)", (tg_id,day,status))
+            con.commit()
+            row = con.execute("SELECT * FROM days WHERE tg_id=? AND day=?", (tg_id, day)).fetchone()
+    con.close()
+    return row
 
 
 def start_day(tg_id, day):
