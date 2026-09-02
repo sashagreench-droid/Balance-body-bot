@@ -5,8 +5,9 @@ import bot
 # Keep all previous day-specific patches, then add Day 32 on top.
 runpy.run_module("day31_patch", run_name="__main__")
 
+# DAY_TASKS format is exactly: (task, practice, reflection).
+# The day title already comes from DAYS and must not be duplicated here.
 content.DAY_TASKS[32] = (
-    "Моя стратегия вне дома",
     "🍽️ <b>ЗАДАНИЕ</b>\n\n"
     "Сегодня учимся не «идеально питаться» вне дома, а заранее понимать, как ты будешь принимать решения в реальной жизни.\n\n"
     "Ресторан, поездка, встреча с друзьями или спонтанный выход из дома — это не отдельная жизнь, в которой система питания перестает работать. Это обычные ситуации, для которых тебе нужны свои понятные правила.\n\n"
