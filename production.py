@@ -1,5 +1,10 @@
 import runpy
 import bot
+import db
+
+# Initialize and repair the persistent SQLite database BEFORE any patch is loaded.
+# This is important because production.py temporarily disables bot.main().
+db.init_db()
 
 # Load the full patch chain without letting the nested runner start the bot early.
 _real_main = bot.main
@@ -10,5 +15,5 @@ try:
 finally:
     bot.main = _real_main
 
-# Start only after Day 30 and all previous patches have been applied.
+# Start only after all patches and DB repair have been applied.
 bot.main()
