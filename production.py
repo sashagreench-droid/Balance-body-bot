@@ -8,6 +8,7 @@ db.init_db()
 _real_main = bot.main
 bot.main = lambda: None
 try:
+    runpy.run_module("day38_patch", run_name="__main__")
     runpy.run_module("day37_patch", run_name="__main__")
     runpy.run_module("day37_fix_patch", run_name="__main__")
     runpy.run_module("day36_patch", run_name="__main__")
