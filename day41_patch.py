@@ -56,6 +56,12 @@ if item:
         "🌿 В итоге у тебя должна получиться не просто теория, а готовая личная база: что купить, что держать дома, что взять с собой и куда добавить в течение дня.\n\n"
         "Когда закончишь — нажми «Я ВЫПОЛНИЛА» и ответь на вопросы рефлексии."
     )
+
+    # The main bot UI already adds the practice heading.
+    # Strip it defensively in case the base day content contains it too.
+    if practice.startswith("📝 ПРАКТИКА"):
+        practice = practice[len("📝 ПРАКТИКА"):].lstrip("\n")
+
     content.DAY_TASKS[41] = (task, practice, reflection)
 
 
