@@ -9,6 +9,7 @@ _real_main = bot.main
 bot.main = lambda: None
 try:
     runpy.run_module("day37_patch", run_name="__main__")
+    runpy.run_module("day37_fix_patch", run_name="__main__")
     runpy.run_module("day36_patch", run_name="__main__")
     runpy.run_module("day36_fix_patch", run_name="__main__")
     runpy.run_module("day35_cleanup_patch", run_name="__main__")
