@@ -1,6 +1,7 @@
+import bot
 import content
 
-# Day 38 — Training for health: replace the short task with a concrete choice of benefits.
+# Day 38 — training benefits beyond weight + a day-specific reflection.
 item = content.DAY_TASKS.get(38)
 if item:
     task, practice, reflection = item
@@ -23,3 +24,39 @@ if item:
         "🌿 Здесь нет правильных или неправильных ответов. Важно найти свои причины, которые будут поддерживать тебя в долгосрочной перспективе, а не только желание увидеть определённую цифру на весах."
     )
     content.DAY_TASKS[38] = (task, practice, reflection)
+
+
+_original_start_reflection = bot.start_reflection
+_original_reflection_feedback = bot.reflection_feedback
+
+
+async def start_reflection(q, context):
+    if bot.db.user(q.from_user.id)["current_day"] == 38:
+        context.user_data["awaiting_reflection"] = True
+        await q.message.reply_text(
+            "🌿 <b>Теперь рефлексия</b>\n\n"
+            "Ты выбрала несколько причин, ради которых готова тренироваться не только ради веса.\n\n"
+            "1️⃣ Какая из выбранных причин для тебя сейчас самая важная — и почему?\n\n"
+            "2️⃣ Что поможет тебе вспоминать об этой причине в дни, когда совсем не хочется тренироваться?\n\n"
+            "Напиши ответ одним сообщением. Я дам тебе короткую обратную связь, а потом мы завершим день.",
+            parse_mode="HTML",
+        )
+        return
+
+    await _original_start_reflection(q, context)
+
+
+def reflection_feedback(day, text, uid=None):
+    if day == 38:
+        answer = (text or "").strip()
+        return (
+            "❤️ Спасибо за ответ.\n\n"
+            f"Ты выбрала для себя такую опору: «{answer}».\n\n"
+            "Это важно: когда у тренировок есть личный смысл, кроме цифры на весах, намного легче воспринимать их как часть обычной жизни, а не как временную обязанность. "
+            "Сохрани эту причину — к ней можно возвращаться в дни, когда мотивации меньше."
+        )
+    return _original_reflection_feedback(day, text, uid)
+
+
+bot.start_reflection = start_reflection
+bot.reflection_feedback = reflection_feedback
