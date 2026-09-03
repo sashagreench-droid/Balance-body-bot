@@ -20,6 +20,7 @@ try:
     runpy.run_module("day37_fix_patch", run_name="__main__")
     runpy.run_module("day38_patch", run_name="__main__")
     runpy.run_module("day39_patch", run_name="__main__")
+    runpy.run_module("day40_patch", run_name="__main__")
     runpy.run_module("day30_debug_patch", run_name="__main__")
 finally:
     bot.main = _real_main
