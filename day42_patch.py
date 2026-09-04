@@ -1,11 +1,10 @@
-import runpy
 import content
 import bot
 import db
 
 # Day 42 — make the "rest without food" exercise concrete and practical.
-# Continue the existing day-specific patch chain.
-runpy.run_module("day41_patch", run_name="__main__")
+# Day 41 is loaded separately by production.py; do not re-run the previous
+# patch chain here, otherwise handlers can be wrapped more than once.
 
 content.DAY_TASKS[42] = (
     "Сегодня ищем способы отдыхать и переключаться не только с помощью еды.",
