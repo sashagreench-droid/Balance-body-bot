@@ -10,6 +10,16 @@ _real_start = bot.start
 _real_show_progress = bot.show_progress
 
 
+def _mark_existing_graduates():
+    """Migrate users who completed Day 49 before this patch was installed."""
+    con = db.connect()
+    rows = con.execute("SELECT tg_id FROM days WHERE day=49 AND status='COMPLETED'").fetchall()
+    for row in rows:
+        con.execute("UPDATE users SET current_day=50 WHERE tg_id=?", (row["tg_id"],))
+    con.commit()
+    con.close()
+
+
 def _complete_day(tg_id, day, reflection):
     ok = _real_complete_day(tg_id, day, reflection)
     if ok and day == 49:
@@ -22,12 +32,8 @@ def _complete_day(tg_id, day, reflection):
 
 def _init_db():
     _real_init_db()
-    # Restore the completed-course sentinel after the legacy DB initializer
-    # clamps current_day to 49.
     con = db.connect()
-    rows = con.execute(
-        "SELECT tg_id FROM days WHERE day=49 AND status='COMPLETED'"
-    ).fetchall()
+    rows = con.execute("SELECT tg_id FROM days WHERE day=49 AND status='COMPLETED'").fetchall()
     for row in rows:
         con.execute("UPDATE users SET current_day=50 WHERE tg_id=?", (row["tg_id"],))
     con.commit()
@@ -36,6 +42,7 @@ def _init_db():
 
 db.complete_day = _complete_day
 db.init_db = _init_db
+_mark_existing_graduates()
 
 
 async def _final_screen(q):
@@ -98,8 +105,6 @@ bot.show_day = _show_day
 bot.start = _start
 bot.show_progress = _show_progress
 
-# Intercept the menu's Continue action for graduates. The callback handler
-# resolves bot.show_day dynamically, so the final screen is shown instead of Day 49.
 _real_menu = bot.menu
 
 async def _menu(update, context):
