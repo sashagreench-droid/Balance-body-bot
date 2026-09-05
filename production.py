@@ -2,14 +2,11 @@ import runpy
 import bot
 import db
 
-# Initialize the database before loading any patch chain.
 db.init_db()
 
 _real_main = bot.main
 bot.main = lambda: None
 try:
-    # Load patches from oldest to newest so the newest day-specific
-    # handlers stay outermost and do not get bypassed by older wrappers.
     runpy.run_module("day29_state_patch", run_name="__main__")
     runpy.run_module("day31_reflection_patch", run_name="__main__")
     runpy.run_module("day34_reflection_clean_patch", run_name="__main__")
@@ -26,6 +23,7 @@ try:
     runpy.run_module("day42_fix_patch", run_name="__main__")
     runpy.run_module("day42_practice_fix", run_name="__main__")
     runpy.run_module("day43_patch", run_name="__main__")
+    runpy.run_module("day43_runtime_fix", run_name="__main__")
     runpy.run_module("day30_debug_patch", run_name="__main__")
 finally:
     bot.main = _real_main
