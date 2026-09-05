@@ -11,7 +11,7 @@ _original_menu = bot.menu
 
 def _day43_header():
     info = DAYS[42]
-    title = info[0]
+    title = info[1]
     task = DAY_TASKS[43]
     intro = task[0]
     skill = info[3]
