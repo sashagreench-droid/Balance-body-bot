@@ -4,11 +4,9 @@ from telegram.ext import ApplicationHandlerStop, CommandHandler, CallbackQueryHa
 import bot
 import db
 
-# Launch price: 4,990 RUB target, collected in Telegram Stars.
+# Launch price target: 4,990 RUB. Telegram digital-goods payments are collected
+# in Telegram Stars, so the checkout itself shows Stars.
 # Two installments: 1,750 Stars + 1,750 Stars.
-# The exact RUB value of Stars varies by user's purchase route/region, so the
-# bot intentionally displays the price in Stars rather than promising a fixed
-# ruble conversion.
 PART_STARS = {1: 1750, 2: 1750}
 TOTAL_STARS = sum(PART_STARS.values())
 
@@ -62,7 +60,7 @@ async def _show_offer(target, uid):
     if paid == {1, 2}:
         await target.reply_text(
             "✅ <b>BALANCE BODY уже оплачен</b>\n\n"
-            "Тебе открыт весь курс из 49 дней. Можно начинать с Дня 1 или продолжать с текущего дня.",
+            "Тебе открыт весь курс из 49 дней. Можно продолжать с текущего дня.",
             parse_mode="HTML",
             reply_markup=_payment_kb(uid),
         )
@@ -88,8 +86,6 @@ async def _show_offer(target, uid):
 
 async def _buy_callback(update, context):
     q = update.callback_query
-    if not q.data.startswith("buy:"):
-        return
     await q.answer()
     uid = q.from_user.id
     part = int(q.data.split(":", 1)[1])
@@ -151,8 +147,6 @@ async def _successful_payment(update, context):
 
     paid = _paid_parts(uid)
     if paid == {1, 2}:
-        # The existing course engine starts at day 1 for new users. For an
-        # already-progressed user, preserve their current day and simply unlock access.
         u = db.user(uid)
         await update.message.reply_text(
             "🎉 <b>Оплата получена!</b>\n\n"
@@ -214,28 +208,24 @@ bot.menu = _menu_payment_gate
 _real_main_kb = bot.main_kb
 def _main_kb_with_buy():
     kb = _real_main_kb()
-    # Keep the original menu and add the purchase entry at the bottom.
     rows = list(kb.inline_keyboard)
     rows.append([InlineKeyboardButton("💳 КУПИТЬ BALANCE BODY", callback_data="buy:offer")])
     return InlineKeyboardMarkup(rows)
 
 bot.main_kb = _main_kb_with_buy
 
-# buy:offer is handled separately because the purchase button itself is a callback.
 async def _buy_offer_callback(update, context):
     q = update.callback_query
-    if q.data != "buy:offer":
-        return
     await q.answer()
     await _show_offer(q.message, q.from_user.id)
     raise ApplicationHandlerStop
 
-_real_run_polling = None
+# admin_panel_patch has already wrapped run_polling by the time this patch loads.
+# Capture that wrapped method now, then add payment handlers on top of it.
+_ORIGINAL_RUN_POLLING = bot.Application.run_polling
+
 
 def _install_payment_handlers(self, *args, **kwargs):
-    global _real_run_polling
-    if _real_run_polling is None:
-        _real_run_polling = self.run_polling
     self.add_handler(CommandHandler("buy", _buy_command), group=-6)
     self.add_handler(CommandHandler("terms", _terms), group=-6)
     self.add_handler(CommandHandler("paysupport", _paysupport), group=-6)
@@ -243,7 +233,7 @@ def _install_payment_handlers(self, *args, **kwargs):
     self.add_handler(MessageHandler(filters.SUCCESSFUL_PAYMENT, _successful_payment), group=-6)
     self.add_handler(CallbackQueryHandler(_buy_offer_callback, pattern=r"^buy:offer$"), group=-6)
     self.add_handler(CallbackQueryHandler(_buy_callback, pattern=r"^buy:[12]$"), group=-6)
-    return _real_run_polling(*args, **kwargs)
+    return _ORIGINAL_RUN_POLLING(self, *args, **kwargs)
 
 bot.Application.run_polling = _install_payment_handlers
 
