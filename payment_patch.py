@@ -158,10 +158,21 @@ async def _buy_callback(update, context):
 
     _ensure_payments_table()
     con = db.connect()
-    con.execute(
-        "INSERT OR REPLACE INTO payments(tg_id,part,amount_rub,status,created_at) VALUES(?,?,?,?,CURRENT_TIMESTAMP)",
-        (uid, part, PART_RUB[part], "pending"),
-    )
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(payments)").fetchall()}
+    values = {"tg_id": uid, "part": part, "amount_rub": PART_RUB[part], "status": "pending", "created_at": datetime.utcnow().isoformat()}
+    # Compatibility with the old Stars schema, if it is still present in the Railway DB.
+    if "payload" in cols:
+        values["payload"] = f"manual_transfer_part_{part}"
+    if "amount_stars" in cols:
+        values["amount_stars"] = 0
+    if "currency" in cols:
+        values["currency"] = "RUB"
+    if "telegram_payment_charge_id" in cols:
+        values["telegram_payment_charge_id"] = None
+    fields = list(values)
+    placeholders = ",".join("?" for _ in fields)
+    sql = f"INSERT OR REPLACE INTO payments({','.join(fields)}) VALUES({placeholders})"
+    con.execute(sql, tuple(values[f] for f in fields))
     con.commit()
     con.close()
 
@@ -320,7 +331,7 @@ async def _paysupport(update, context):
     )
 
 
-# First payment unlocks the course immediately. After 24 days the second payment is required.
+# First payment unlocks the bot course immediately. After 24 days the second payment is required.
 _real_menu = bot.menu
 async def _menu_payment_gate(update, context):
     q = update.callback_query
