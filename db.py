@@ -8,6 +8,8 @@ _VOLUME_PATH = os.getenv("RAILWAY_VOLUME_MOUNT_PATH")
 DB_PATH = Path(os.getenv("DB_PATH") or (Path(_VOLUME_PATH) / "bot.sqlite3" if _VOLUME_PATH else "bot.sqlite3"))
 DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
+COURSE_DAYS = 50
+
 
 def connect():
     con = sqlite3.connect(DB_PATH)
@@ -65,12 +67,10 @@ def init_db():
     if "reminder_sent_date" not in cols:
         con.execute("ALTER TABLE users ADD COLUMN reminder_sent_date TEXT")
 
-    # Repair users created by older versions of the bot where some day rows
-    # could be missing. Never overwrite existing rows or their progress.
     users = con.execute("SELECT tg_id, current_day FROM users").fetchall()
     for u in users:
-        current_day = max(1, min(int(u["current_day"] or 1), 49))
-        for d in range(1, 50):
+        current_day = max(1, min(int(u["current_day"] or 1), COURSE_DAYS))
+        for d in range(1, COURSE_DAYS + 1):
             if d < current_day:
                 status = "COMPLETED"
             elif d == current_day:
@@ -90,8 +90,8 @@ def ensure_user(tg_id, name):
     con = connect()
     con.execute("INSERT OR IGNORE INTO users(tg_id,name) VALUES(?,?)", (tg_id,name))
     user_row = con.execute("SELECT current_day FROM users WHERE tg_id=?", (tg_id,)).fetchone()
-    current_day = max(1, min(int(user_row["current_day"] or 1), 49))
-    for d in range(1,50):
+    current_day = max(1, min(int(user_row["current_day"] or 1), COURSE_DAYS))
+    for d in range(1, COURSE_DAYS + 1):
         status = "COMPLETED" if d < current_day else ("AVAILABLE" if d == current_day else "LOCKED")
         con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)", (tg_id,d,status))
     con.commit()
@@ -106,11 +106,9 @@ def day_row(tg_id, day):
     con = connect()
     row = con.execute("SELECT * FROM days WHERE tg_id=? AND day=?", (tg_id, day)).fetchone()
     if row is None:
-        # Last-resort self-healing for an incomplete/legacy DB. If the requested
-        # day is the user's current day, make it available so «Продолжить» works.
         u = con.execute("SELECT current_day FROM users WHERE tg_id=?", (tg_id,)).fetchone()
         if u:
-            current_day = max(1, min(int(u["current_day"] or 1), 49))
+            current_day = max(1, min(int(u["current_day"] or 1), COURSE_DAYS))
             status = "COMPLETED" if day < current_day else ("AVAILABLE" if day == current_day else "LOCKED")
             con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)", (tg_id,day,status))
             con.commit()
@@ -128,9 +126,9 @@ def complete_day(tg_id, day, reflection):
     row=con.execute("SELECT status FROM days WHERE tg_id=? AND day=?",(tg_id,day)).fetchone()
     if not row or row["status"] == "COMPLETED": con.close(); return False
     con.execute("UPDATE days SET status='COMPLETED', reflection=?, completed_at=CURRENT_TIMESTAMP WHERE tg_id=? AND day=?",(reflection,tg_id,day))
-    if day < 49:
+    if day < COURSE_DAYS:
         con.execute("UPDATE days SET status='AVAILABLE' WHERE tg_id=? AND day=? AND status='LOCKED'",(tg_id,day+1))
-    con.execute("UPDATE users SET current_day=? WHERE tg_id=?",(min(day+1,49),tg_id))
+    con.execute("UPDATE users SET current_day=? WHERE tg_id=?",(min(day+1,COURSE_DAYS),tg_id))
     con.commit(); con.close(); return True
 
 
