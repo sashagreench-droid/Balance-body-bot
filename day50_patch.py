@@ -10,6 +10,8 @@ TITLE = "Я ДЕЛАЮ ЛЮБИМЫЕ БЛЮДА ПОД СЕБЯ"
 LEVEL_NAME = "АВТОМАТИЗИРУЮ"
 SKILL = "Адаптирую любимые блюда под свой рацион"
 
+INFO = (DAY, TITLE, LEVEL_NAME, SKILL, XP)
+
 INTRO = (
     "Когда ты начинаешь считать калории и БЖУ, не нужно переходить на отдельную «диетическую еду».\n\n"
     "Любимые блюда можно оставить в рационе и немного изменить их состав под себя.\n\n"
@@ -53,13 +55,12 @@ REFLECTION = (
     "И что оставишь без изменений ради вкуса и удовольствия?"
 )
 
-INFO = (DAY, TITLE, LEVEL_NAME, SKILL, XP)
 TASK = (
     "Сегодня учимся делать привычные блюда удобнее для своего рациона, не превращая их в «диетическую еду».\n\n"
     + INTRO + "\n\n" + EXAMPLES
 )
 
-# DAYS is a list of tuples in the base bot; append the new day exactly in that format.
+# The base course stores DAYS as a list of tuples.
 if isinstance(getattr(bot, "DAYS", None), list):
     while len(bot.DAYS) < DAY:
         bot.DAYS.append((len(bot.DAYS) + 1, "", LEVEL_NAME, "", 50))
@@ -68,40 +69,43 @@ if isinstance(getattr(bot, "DAYS", None), list):
 if isinstance(getattr(bot, "DAY_TASKS", None), dict):
     bot.DAY_TASKS[DAY] = ("Сегодня учимся адаптировать любимую еду под свой рацион.", PRACTICE, REFLECTION)
 
-# Day 50 has its own level fallback because the original LEVELS end at day 49.
-_real_level_for_day = bot.level_for_day
+# Extend the final level to include the new Day 50.
+if isinstance(getattr(bot, "LEVELS", None), dict) and 5 in bot.LEVELS:
+    bot.LEVELS[5] = (bot.LEVELS[5][0], bot.LEVELS[5][1], DAY)
 
+# Add a dedicated final badge without changing existing badges.
+if isinstance(getattr(bot, "BADGES", None), dict):
+    bot.BADGES[DAY] = "🍕 Любимая еда — в моей системе"
+
+_real_level_for_day = bot.level_for_day
 def level_for_day(n):
     if n == DAY:
         return 5, LEVEL_NAME
     return _real_level_for_day(n)
-
 bot.level_for_day = level_for_day
 
 _real_completion_text = bot.completion_text
-
 def completion_text(n, info, badge_text=""):
     if n == DAY:
-        return f"🎉 <b>День 50 завершен!</b>\n\n+{XP} XP\n\n🏆 Ты дошла до 50-го дня и теперь умеешь адаптировать любимые блюда под себя ❤️"
+        return (
+            f"🎉 <b>День 50 завершен!</b>\n\n"
+            f"+{XP} XP{badge_text}\n\n"
+            "🏆 Ты дошла до финала и теперь умеешь не отказываться от любимой еды, "
+            "а адаптировать её под себя ❤️"
+        )
     return _real_completion_text(n, info, badge_text)
-
 bot.completion_text = completion_text
 
-# Replace only the day-50 presentation/practice/reflection functions. Existing days stay untouched.
 _real_show_day = bot.show_day
 async def show_day(q):
-    u = bot.db.user(q.from_user.id)
-    n = u["current_day"]
+    n = bot.db.user(q.from_user.id)["current_day"]
     if n != DAY:
         return await _real_show_day(q)
     status = bot.db.day_row(q.from_user.id, DAY)["status"]
     text = (
         f"🗓 <b>ДЕНЬ {DAY} ИЗ {COURSE_DAYS}</b>\n\n"
         f"<b>{TITLE}</b>\n\n"
-        f"Уровень: {LEVEL_NAME}\n"
-        f"🎯 Навык: {SKILL}\n"
-        f"⭐ Награда: +{XP} XP\n\n"
-        f"{TASK}"
+        f"Уровень: {LEVEL_NAME}\n🎯 Навык: {SKILL}\n⭐ Награда: +{XP} XP\n\n{TASK}"
     )
     await q.message.reply_text(text, parse_mode="HTML", reply_markup=bot.day_kb(DAY, status))
 bot.show_day = show_day
@@ -116,8 +120,7 @@ async def begin_day(q, n):
         return
     bot.db.start_day(q.from_user.id, DAY)
     text = (
-        f"💡 <b>ДЕНЬ {DAY} — {TITLE}</b>\n\n"
-        f"{TASK}\n\n"
+        f"💡 <b>ДЕНЬ {DAY} — {TITLE}</b>\n\n{TASK}\n\n"
         f"🎯 Сегодня формируем навык:\n<b>{SKILL}</b>\n\n"
         "Когда будешь готова, переходи к практике."
     )
@@ -157,7 +160,26 @@ async def start_reflection(q, context):
     )
 bot.start_reflection = start_reflection
 
-# Day 50 is the new end of the course.
+# Day-specific reflection feedback: react to what the participant actually wrote.
+_real_reflection_feedback = bot.reflection_feedback
+def reflection_feedback(day, text, uid=None):
+    if day != DAY:
+        return _real_reflection_feedback(day, text, uid)
+    t = text.strip().lower()
+    parts = []
+    if any(x in t for x in ("пицц", "карбона", "синнабон", "бургер", "шаурм", "панкейк", "чизкейк")):
+        parts.append("Ты уже начала смотреть на любимое блюдо не как на «запрещённое», а как на конструктор: можно изменить отдельные ингредиенты и сохранить саму идею блюда.")
+    if any(x in t for x in ("сыр", "ветчин", "соус", "творог", "йогурт", "бекон", "пепперон", "сливк", "сахар", "шоколад", "фарш")):
+        parts.append("Особенно ценно, что ты выделила конкретные ингредиенты для замены. Именно такой подход помогает адаптировать еду под свои БЖУ, а не отказываться от неё целиком.")
+    if any(x in t for x in ("оставлю", "оставить", "не буду менять", "без изменений", "вкус")):
+        parts.append("И то, что ты оставляешь часть блюда без изменений ради вкуса, тоже важно: не нужно оптимизировать еду до состояния, в котором она перестаёт тебе нравиться.")
+    if any(x in t for x in ("могу", "впис", "адаптир", "замен", "приготов", "сдела")):
+        parts.append("Это уже переносимый навык: теперь ты можешь смотреть на любое любимое блюдо и самостоятельно решать, что в нём стоит изменить, а что оставить.")
+    if not parts:
+        parts.append("Ты тренируешь именно тот навык, ради которого нужен этот день: не выбирать между «любимая еда» и «правильное питание», а искать свой вариант блюда.")
+    return "Спасибо за ответ ❤️\n\n" + "\n\n".join(parts)
+bot.reflection_feedback = reflection_feedback
+
 _real_show_progress = bot.show_progress
 async def show_progress(q):
     uid = q.from_user.id
@@ -178,9 +200,6 @@ async def show_map(q):
         done = sum(1 for n in range(a, b + 1) if bot.db.day_row(uid, n)["status"] == "COMPLETED")
         icon = "🟢" if done == (b - a + 1) else ("🟡" if done else "🔒")
         lines.append(f"{icon} L{level} — {name}: {done}/{b - a + 1}")
-    d50 = bot.db.day_row(uid, DAY)
-    icon = "🟢" if d50 and d50["status"] == "COMPLETED" else ("🟡" if d50 and d50["status"] == "AVAILABLE" else "🔒")
-    lines.append(f"{icon} L5 — {LEVEL_NAME}: {1 if d50 and d50['status'] == 'COMPLETED' else 0}/1")
     await q.message.reply_text("🗺 <b>МОЯ КАРТА</b>\n\n" + "\n".join(lines), parse_mode="HTML", reply_markup=bot.back_kb())
 bot.show_map = show_map
 
@@ -196,7 +215,6 @@ bot.show_skills = show_skills
 
 _real_reminders = bot.reminders
 async def reminders(context):
-    # Keep the existing reminder behavior, but include day 50 users.
     now = bot.datetime.now(bot.TZ)
     date_key = now.date().isoformat()
     if now.hour != bot.REMINDER_HOUR:
@@ -216,3 +234,17 @@ async def reminders(context):
         except Exception:
             pass
 bot.reminders = reminders
+
+# The existing /start conversation uses the function object available when main() builds it.
+_real_start = bot.start
+async def start(update, context):
+    u = bot.db.user(update.effective_user.id)
+    if u:
+        await update.message.reply_text(
+            f"С возвращением, {u['name']} ❤️\n\n"
+            f"День {u['current_day']} из {COURSE_DAYS} уже ждёт тебя.",
+            reply_markup=bot.main_kb()
+        )
+        return bot.ConversationHandler.END
+    return await _real_start(update, context)
+bot.start = start
