@@ -13,6 +13,7 @@ PART_RUB = {1: 2495, 2: 2495}
 SECOND_PAYMENT_DELAY_DAYS = 24
 PAYMENT_DETAILS = os.getenv("PAYMENT_DETAILS", "Реквизиты оплаты пока не настроены.").strip()
 COURSE_CHANNEL_ID = os.getenv("COURSE_CHANNEL_ID", "").strip()
+COURSE_DAYS = 50
 
 
 def _ensure_payments_table():
@@ -30,7 +31,6 @@ def _ensure_payments_table():
             UNIQUE(tg_id, part)
         )
     """)
-    # Add fields when upgrading the previous Stars-payment table.
     cols = {r["name"] for r in con.execute("PRAGMA table_info(payments)").fetchall()}
     if "amount_rub" not in cols:
         con.execute("ALTER TABLE payments ADD COLUMN amount_rub INTEGER")
@@ -100,7 +100,7 @@ async def _show_offer(target, uid):
     if paid == {1, 2}:
         await target.reply_text(
             "🎉 <b>BALANCE BODY полностью оплачен</b>\n\n"
-            "Тебе открыт весь курс из 49 дней ❤️",
+            "Тебе открыт весь курс из 50 дней ❤️",
             parse_mode="HTML",
             reply_markup=_payment_kb(uid),
         )
@@ -127,7 +127,7 @@ async def _show_offer(target, uid):
     else:
         text = (
             "💳 <b>BALANCE BODY</b>\n\n"
-            "<b>49 дней → самостоятельность ❤️</b>\n\n"
+            f"<b>{COURSE_DAYS} дней → самостоятельность ❤️</b>\n\n"
             "Ежедневные практики, питание без жестких запретов, работа со сладким, ресторанами, стрессом, движением и срывами.\n\n"
             "Стоимость курса: <b>4 990 ₽</b>.\n"
             "Оплата в два этапа: <b>2 495 ₽ + 2 495 ₽</b>.\n"
@@ -160,7 +160,6 @@ async def _buy_callback(update, context):
     con = db.connect()
     cols = {r["name"] for r in con.execute("PRAGMA table_info(payments)").fetchall()}
     values = {"tg_id": uid, "part": part, "amount_rub": PART_RUB[part], "status": "pending", "created_at": datetime.utcnow().isoformat()}
-    # Compatibility with the old Stars schema, if it is still present in the Railway DB.
     if "payload" in cols:
         values["payload"] = f"manual_transfer_part_{part}"
     if "amount_stars" in cols:
@@ -313,7 +312,7 @@ async def _buy_command(update, context):
 async def _terms(update, context):
     await update.message.reply_text(
         "📄 <b>УСЛОВИЯ ПОКУПКИ</b>\n\n"
-        "BALANCE BODY — цифровой образовательный курс из 49 дней.\n\n"
+        f"BALANCE BODY — цифровой образовательный курс из {COURSE_DAYS} дней.\n\n"
         "Стоимость: 4 990 ₽, оплата двумя платежами по 2 495 ₽.\n"
         "Второй платеж доступен через 24 дня после первого.\n\n"
         "Доступ предоставляется после подтверждения оплаты.\n\n"
@@ -331,7 +330,6 @@ async def _paysupport(update, context):
     )
 
 
-# First payment unlocks the bot course immediately. After 24 days the second payment is required.
 _real_menu = bot.menu
 async def _menu_payment_gate(update, context):
     q = update.callback_query
@@ -358,7 +356,9 @@ bot.menu = _menu_payment_gate
 _real_main_kb = bot.main_kb
 def _main_kb_with_buy():
     kb = _real_main_kb()
-    rows = list(kb.inline_keyboard)
+    rows = [list(row) for row in kb.inline_keyboard]
+    # Keep exactly one purchase button even if another runtime patch already added it.
+    rows = [row for row in rows if not any(getattr(button, "callback_data", None) == "buy:offer" for button in row)]
     rows.append([InlineKeyboardButton("💳 КУПИТЬ BALANCE BODY", callback_data="buy:offer")])
     return InlineKeyboardMarkup(rows)
 
