@@ -37,6 +37,7 @@ try:
     runpy.run_module("day30_debug_patch", run_name="__main__")
     runpy.run_module("payment_patch", run_name="__main__")
     runpy.run_module("payment_details_patch", run_name="__main__")
+    runpy.run_module("payment_receipt_patch", run_name="__main__")
 finally:
     bot.main = _real_main
 
