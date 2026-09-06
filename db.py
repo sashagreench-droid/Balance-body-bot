@@ -69,7 +69,7 @@ def init_db():
 
     users = con.execute("SELECT tg_id, current_day FROM users").fetchall()
     for u in users:
-        current_day = max(1, min(int(u["current_day"] or 1), COURSE_DAYS))
+        current_day = max(1, min(int(u["current_day"] or 1), COURSE_DAYS + 1))
         for d in range(1, COURSE_DAYS + 1):
             if d < current_day:
                 status = "COMPLETED"
@@ -77,10 +77,7 @@ def init_db():
                 status = "AVAILABLE"
             else:
                 status = "LOCKED"
-            con.execute(
-                "INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)",
-                (u["tg_id"], d, status),
-            )
+            con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)", (u["tg_id"], d, status))
 
     con.commit()
     con.close()
@@ -90,7 +87,7 @@ def ensure_user(tg_id, name):
     con = connect()
     con.execute("INSERT OR IGNORE INTO users(tg_id,name) VALUES(?,?)", (tg_id,name))
     user_row = con.execute("SELECT current_day FROM users WHERE tg_id=?", (tg_id,)).fetchone()
-    current_day = max(1, min(int(user_row["current_day"] or 1), COURSE_DAYS))
+    current_day = max(1, min(int(user_row["current_day"] or 1), COURSE_DAYS + 1))
     for d in range(1, COURSE_DAYS + 1):
         status = "COMPLETED" if d < current_day else ("AVAILABLE" if d == current_day else "LOCKED")
         con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)", (tg_id,d,status))
@@ -108,7 +105,7 @@ def day_row(tg_id, day):
     if row is None:
         u = con.execute("SELECT current_day FROM users WHERE tg_id=?", (tg_id,)).fetchone()
         if u:
-            current_day = max(1, min(int(u["current_day"] or 1), COURSE_DAYS))
+            current_day = max(1, min(int(u["current_day"] or 1), COURSE_DAYS + 1))
             status = "COMPLETED" if day < current_day else ("AVAILABLE" if day == current_day else "LOCKED")
             con.execute("INSERT OR IGNORE INTO days(tg_id,day,status) VALUES(?,?,?)", (tg_id,day,status))
             con.commit()
@@ -128,7 +125,7 @@ def complete_day(tg_id, day, reflection):
     con.execute("UPDATE days SET status='COMPLETED', reflection=?, completed_at=CURRENT_TIMESTAMP WHERE tg_id=? AND day=?",(reflection,tg_id,day))
     if day < COURSE_DAYS:
         con.execute("UPDATE days SET status='AVAILABLE' WHERE tg_id=? AND day=? AND status='LOCKED'",(tg_id,day+1))
-    con.execute("UPDATE users SET current_day=? WHERE tg_id=?",(min(day+1,COURSE_DAYS),tg_id))
+    con.execute("UPDATE users SET current_day=? WHERE tg_id=?",(min(day+1,COURSE_DAYS+1),tg_id))
     con.commit(); con.close(); return True
 
 
@@ -170,9 +167,6 @@ def system_items(tg_id):
 
 def claim_reminder(tg_id, date_key):
     con = connect()
-    cur = con.execute(
-        "UPDATE users SET reminder_sent_date=? WHERE tg_id=? AND (reminder_sent_date IS NULL OR reminder_sent_date<>?)",
-        (date_key, tg_id, date_key),
-    )
+    cur = con.execute("UPDATE users SET reminder_sent_date=? WHERE tg_id=? AND (reminder_sent_date IS NULL OR reminder_sent_date<>?)", (date_key, tg_id, date_key))
     con.commit(); con.close()
     return cur.rowcount == 1
