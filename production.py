@@ -33,6 +33,7 @@ try:
     runpy.run_module("day49_practice_patch", run_name="__main__")
     runpy.run_module("day49_final_patch", run_name="__main__")
     runpy.run_module("day50_patch", run_name="__main__")
+    runpy.run_module("course50_text_patch", run_name="__main__")
     runpy.run_module("admin_panel_patch", run_name="__main__")
     runpy.run_module("admin_panel_enhance_patch", run_name="__main__")
     runpy.run_module("day30_debug_patch", run_name="__main__")
