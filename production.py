@@ -30,6 +30,7 @@ try:
     runpy.run_module("day45_runtime_fix", run_name="__main__")
     runpy.run_module("day_feedback_patch", run_name="__main__")
     runpy.run_module("day1_2_expanded_patch", run_name="__main__")
+    runpy.run_module("day3_practice_patch", run_name="__main__")
     runpy.run_module("day48_practice_patch", run_name="__main__")
     runpy.run_module("day49_practice_patch", run_name="__main__")
     runpy.run_module("day49_final_patch", run_name="__main__")
