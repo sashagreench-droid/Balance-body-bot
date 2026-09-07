@@ -41,6 +41,7 @@ try:
     runpy.run_module("payment_patch", run_name="__main__")
     runpy.run_module("payment_details_patch", run_name="__main__")
     runpy.run_module("payment_no_channel_patch", run_name="__main__")
+    runpy.run_module("day2_doubletap_fix_patch", run_name="__main__")
 finally:
     bot.main = _real_main
 
