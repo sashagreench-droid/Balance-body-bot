@@ -86,7 +86,7 @@ def reflection_feedback(day, text, uid=None):
             "Со временем это даст тебе собственный ориентир без постоянного взвешивания."
         )
 
-    return await _original_feedback(day, text, uid)
+    return _original_feedback(day, text, uid)
 
 
 bot.reflection_feedback = reflection_feedback
