@@ -14,6 +14,12 @@ bot.DAY_TASKS[15] = (
 
 
 async def send_day12_bonus(context, chat_id):
+    # One completion can pass through both finish_day and handle_text wrappers.
+    # Mark the bonus before sending so the file can never be delivered twice.
+    if context.user_data.get("day12_bonus_sent"):
+        return
+    context.user_data["day12_bonus_sent"] = True
+
     caption = (
         "📌 Забери себе шпаргалку ❤️\n\n"
         "Здесь ещё больше простых источников белка, которые можно использовать в обычном рационе.\n\n"
@@ -23,7 +29,6 @@ async def send_day12_bonus(context, chat_id):
         with open(IMAGE_PATH, "rb") as document:
             await context.bot.send_document(chat_id=chat_id, document=document, caption=caption)
     except Exception:
-        # Не мешаем завершению дня, если Telegram временно не принял материал.
         pass
 
 
