@@ -37,6 +37,7 @@ try:
     runpy.run_module("day7_practice_patch", run_name="__main__")
     runpy.run_module("day8_practice_patch", run_name="__main__")
     runpy.run_module("day9_practice_patch", run_name="__main__")
+    runpy.run_module("day6_9_practice_header_fix", run_name="__main__")
     runpy.run_module("day48_practice_patch", run_name="__main__")
     runpy.run_module("day49_practice_patch", run_name="__main__")
     runpy.run_module("day49_final_patch", run_name="__main__")
