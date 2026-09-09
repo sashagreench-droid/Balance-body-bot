@@ -3,7 +3,8 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
 # BALANCE BODY — День 14: personal BJU check + trainer review.
 # The participant first records her current BJU, then sends a personal photo.
-# Both are forwarded to the trainer for correction.
+# Both are forwarded to the trainer. The trainer can then reply directly to
+# the participant from the admin notification.
 
 DAY14_TEXT = """📝 <b>КОНТРОЛЬНАЯ: РАЗБИРАЮ МОЁ ТЕКУЩЕЕ БЖУ</b>
 
@@ -62,6 +63,7 @@ async def show_practice(q, context):
 async def menu(update, context):
     q = update.callback_query
     data = q.data or ""
+
     if data == "day14_bju_start":
         await q.answer()
         context.user_data["awaiting_day14_bju"] = True
@@ -91,10 +93,42 @@ async def menu(update, context):
         )
         return
 
+    if data.startswith("day14_reply:") and q.from_user.id in bot.ADMIN_IDS:
+        await q.answer()
+        try:
+            target_uid = int(data.split(":", 1)[1])
+        except (ValueError, IndexError):
+            return
+        context.user_data["day14_trainer_reply_uid"] = target_uid
+        await q.message.reply_text(
+            "✍️ Напиши ответ ученице одним сообщением.\n\n"
+            "Я отправлю его напрямую в чат с ней."
+        )
+        return
+
     return await bot._day14_bju_original_menu(update, context)
 
 
 async def handle_text(update, context):
+    # Trainer reply to a Day 14 BJU request.
+    target_uid = context.user_data.pop("day14_trainer_reply_uid", None)
+    if target_uid is not None and update.effective_user.id in bot.ADMIN_IDS:
+        text = (update.message.text or "").strip()
+        if not text:
+            await update.message.reply_text("Напиши текст ответа ученице одним сообщением.")
+            context.user_data["day14_trainer_reply_uid"] = target_uid
+            return
+        try:
+            await context.bot.send_message(
+                target_uid,
+                "👩‍🏫 <b>Обратная связь тренера по БЖУ</b>\n\n" + text,
+                parse_mode="HTML",
+            )
+            await update.message.reply_text("✅ Ответ отправлен ученице.")
+        except Exception as e:
+            await update.message.reply_text(f"Не удалось отправить ответ ученице: {e}")
+        return
+
     if context.user_data.pop("awaiting_day14_bju", False):
         text = (update.message.text or "").strip()
         if not text:
@@ -124,7 +158,6 @@ async def handle_photo(update, context):
         bju = context.user_data.get("day14_bju", "Не указано")
         photo = update.message.photo[-1]
 
-        # Save the photo in the normal course photo table as well.
         caption = update.message.caption or ""
         bot.db.save_photo(uid, 14, photo.file_id, caption)
 
@@ -138,6 +171,9 @@ async def handle_photo(update, context):
                     f"Текущее БЖУ:\n{bju}\n\n"
                     f"Пожалуйста, проверь БЖУ и при необходимости скорректируй его.",
                     parse_mode="HTML",
+                    reply_markup=InlineKeyboardMarkup([
+                        [InlineKeyboardButton("✍️ ОТВЕТИТЬ УЧЕНИЦЕ", callback_data=f"day14_reply:{uid}")]
+                    ]),
                 )
                 await context.bot.send_photo(
                     admin,
@@ -147,7 +183,6 @@ async def handle_photo(update, context):
             except Exception:
                 pass
 
-        # Complete the control day after the full package has been sent.
         info = bot.day_info(14)
         if bot.db.complete_day(uid, 14, f"БЖУ на проверку тренеру: {bju}"):
             bot.db.add_xp(uid, info[4])
