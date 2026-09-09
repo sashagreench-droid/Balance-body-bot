@@ -13,16 +13,21 @@ async def menu(update, context):
     data = q.data or ""
 
     if data == "hunger_start":
+        # Once the first tap has opened the hunger scale, a second tap on the
+        # same old button must not start the flow again.
         if context.user_data.get("awaiting_hunger"):
             await q.answer()
             return
 
     elif data.startswith("hunger:"):
+        # The first accepted hunger value clears this flag. Any repeated or
+        # stale tap must therefore be ignored.
         if not context.user_data.get("awaiting_hunger"):
             await q.answer()
             return
 
     elif data.startswith("satiety:"):
+        # Same protection for the satiety scale.
         if not context.user_data.get("awaiting_satiety"):
             await q.answer()
             return
