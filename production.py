@@ -7,6 +7,9 @@ db.init_db()
 _real_main = bot.main
 bot.main = lambda: None
 try:
+    # Day 29 must be applied before the state patch: it supplies the full
+    # (task, practice, reflection) tuple expected by bot.begin_day().
+    runpy.run_module("day29_patch", run_name="__main__")
     runpy.run_module("day29_state_patch", run_name="__main__")
     runpy.run_module("day31_reflection_patch", run_name="__main__")
     runpy.run_module("day34_reflection_clean_patch", run_name="__main__")
