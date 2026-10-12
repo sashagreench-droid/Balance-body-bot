@@ -478,7 +478,8 @@ def main():
     conv = ConversationHandler(
         entry_points=[CommandHandler("start", start)],
         states={ASK_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND, got_name)]},
-        fallbacks=[]
+        fallbacks=[],
+        allow_reentry=True,
     )
     app.add_handler(conv)
     app.add_handler(CallbackQueryHandler(menu))
